@@ -24,8 +24,25 @@ model = init_chat_model(
     api_key=deepseek_api_key  # pass the key directly
 )
 
-# Stock Watch List
-watch_list = ["0050", "00881", "0056", "00878", "00891", "00893","00894", "00895", "00896", "00946","00899", 803, 2634, 1513, 2471, 1795, 8996, 2376, 2382, 3231, 3515, 2399, 2408, 1528, 4533, 2495, 2354, 6414, 2359, 4562, 2365, 6215, 6188, 3379, 6160, 2453, 8234, 1583, 6609, 6191, 3533, 3037, 2324, 4938, 3234]
+
+def read_watchlist():
+    """
+    Reads stock IDs from 'watchlist.txt' and returns them as a list of strings.
+    Each stock ID is expected to be comma-separated on a single line.
+    """
+    try:
+        with open("watchlist.txt", "r") as f:
+            content = f.read().strip()
+            if content:
+                # Remove any empty strings resulting from multiple commas or leading/trailing commas
+                stock_ids = [s.strip() for s in content.split(',') if s.strip()]
+                return stock_ids
+            else:
+                return []
+    except FileNotFoundError:
+        return {"error": "watchlist.txt not found. Please create the file with comma-separated stock IDs."}
+    except Exception as e:
+        return {"error": f"An error occurred while reading watchlist.txt: {e}"}
 
 ###########Put Tools Here#####################
 import yfinance as yf
@@ -245,7 +262,7 @@ def stock_price_averages(stock_id):
     return yearly_avg, monthly_avg
 
 @tool
-def calcu_KD_w_watchlist(codes = watch_list, period=9, init_k=50.0, init_d=50.0):
+def calcu_KD_w_watchlist( period=9, init_k=50.0, init_d=50.0):
     """
     Calculate weekly K and D values of the stocks in the watchlist.
     Return the format {stock:{k:k_value, d:d_value}, stock_2...}
@@ -254,6 +271,7 @@ def calcu_KD_w_watchlist(codes = watch_list, period=9, init_k=50.0, init_d=50.0)
 
     result = {}
     # Ensure correct dtype
+    codes = read_watchlist()
     for code in codes:
       try:
         # --- Load data and ensure correct dtype ---
