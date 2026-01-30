@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from FinMind.data import DataLoader
 from datetime import datetime, timedelta
+import mongodb_connection as mongo
 
 os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["LANGSMITH_ENDPOINT"] = "https://api.smith.langchain.com"
@@ -261,6 +262,14 @@ def stock_price_averages(stock_id):
     return yearly_avg, monthly_avg
 
 @tool
+def watchlist_information():
+    """
+    Reads and returns the stock watchlist from the MongoDB database.
+    """
+    watchlist = mongo.get_db()
+    return str(watchlist)s
+
+@tool
 def calcu_KD_w_watchlist( period=9, init_k=50.0, init_d=50.0):
     """
     Calculate weekly K and D values of the stocks in the watchlist.
@@ -362,7 +371,7 @@ def stock_per(code):
 # Create agent
 agent = create_agent(
     model=model,
-    tools=[calcu_KD_d, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, stock_per],
+    tools=[calcu_KD_d, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, stock_per, watchlist_information],
     system_prompt="You are a helpful assistant"
 )
 
