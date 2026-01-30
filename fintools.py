@@ -267,7 +267,7 @@ def watchlist_information():
     Reads and returns the stock watchlist from the MongoDB database.
     """
     watchlist = mongo.get_db()
-    return str(watchlist)s
+    return str(watchlist)
 
 @tool
 def calcu_KD_w_watchlist( period=9, init_k=50.0, init_d=50.0):
