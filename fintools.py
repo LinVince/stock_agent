@@ -64,7 +64,6 @@ def stock_data(stock_id):
       return {"error": "計算後資料不足"}
 
   df = df.sort_values(by="Date", ascending=True)
-  display(df)
   return df
 
 @tool
@@ -351,7 +350,6 @@ def stock_per(code):
       end_date=end_date,
   )
 
-  display(df.head())
 
   result = {"dividend_yield":float(df["dividend_yield"][0]), "PER":float(df["PER"][0]), "PBR":float(df["PBR"][0])} if df.shape[0] > 1 else "Not available"
 
