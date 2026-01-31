@@ -1,6 +1,8 @@
 import os
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from dotenv import load_dotenv
+load_dotenv()
 
 # Get MongoDB password from environment variable
 DB_PASSWORD = os.environ.get("MONGO_DB_PASSWORD")
@@ -9,7 +11,7 @@ if not DB_PASSWORD:
     raise ValueError("MONGO_DB_PASSWORD environment variable not set. Please set it before running the application.")
 
 # MongoDB connection string
-MONGO_URI = f"mongodb+srv://vincejim91126_db_user:{DB_PASSWORD}@watchlist.l0q1rbv.mongodb.net/?appName=watchlist"
+MONGO_URI = f"mongodb+srv://vincejim91126_db_user:{DB_PASSWORD}@watchlist.l0q1rbv.mongodb.net/stock_watchlist?retryWrites=true&w=majority&appName=watchlist"
 
 try:
     # Create MongoDB client with timeout
@@ -24,7 +26,7 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     client = None
 
 # Get database
-db = client["stock_watchlist"] if client else None
+db = client.get_database() if client else None
 
 def get_db():
     """

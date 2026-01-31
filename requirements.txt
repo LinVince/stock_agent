@@ -115,3 +115,5 @@ zipp==3.23.0
 zstandard==0.25.0
 pymongo==3.11.0
 dnspython==1.16.0
+dotenv==0.9.9 
+python-dotenv==1.2.1

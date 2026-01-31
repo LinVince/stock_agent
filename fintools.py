@@ -274,8 +274,11 @@ def add_to_watchlist(stock_code, collection_name):
     """
     Adds a stock code to the watchlist according to the specified collection in the MongoDB database stock_watchlist.
     """
-    mongo.insert_document(collection_name, {"stock_code": stock_code})
-    return f"Stock code {stock_code} added to watchlist in collection {collection_name}."
+    result = mongo.insert_document(collection_name, {"stock_code": stock_code})
+    if result != None:
+        return f"Stock code {stock_code} added to watchlist in collection {collection_name}."
+    else:
+        return f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}."
 
 @tool
 def calcu_KD_w_watchlist( period=9, init_k=50.0, init_d=50.0):
