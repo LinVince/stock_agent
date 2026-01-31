@@ -266,7 +266,7 @@ def check_database_connection():
     """
     Checks the MongoDB database connection.
     """
-    return mongo.check_connection()
+    return mongo.check_db_connection()
 
 @tool
 def watchlist_information():
