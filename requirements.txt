@@ -114,3 +114,4 @@ yfinance==1.1.0
 zipp==3.23.0
 zstandard==0.25.0
 pymongo==3.11.0
+dnspython==1.16.0
