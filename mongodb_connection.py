@@ -24,7 +24,7 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     client = None
 
 # Get database
-db = client.["stock_watchlist"] if client else None
+db = client["stock_watchlist"] if client else None
 
 def get_db():
     """
