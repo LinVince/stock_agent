@@ -267,8 +267,15 @@ def watchlist_information():
     Reads and returns the stock watchlist from the MongoDB database.
     """
     watchlist = mongo.get_db()
-    print(str(watchlist))
     return str(watchlist)
+
+@tool
+def add_to_watchlist(stock_code, collection_name):
+    """
+    Adds a stock code to the watchlist according to the specified collection in the MongoDB database stock_watchlist.
+    """
+    mongo.insert_document(collection_name, {"stock_code": stock_code})
+    return f"Stock code {stock_code} added to watchlist in collection {collection_name}."
 
 @tool
 def calcu_KD_w_watchlist( period=9, init_k=50.0, init_d=50.0):
@@ -372,7 +379,7 @@ def stock_per(code):
 # Create agent
 agent = create_agent(
     model=model,
-    tools=[calcu_KD_d, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, stock_per, watchlist_information],
+    tools=[calcu_KD_d, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, stock_per, watchlist_information, add_to_watchlist],
     system_prompt="You are a helpful assistant"
 )
 

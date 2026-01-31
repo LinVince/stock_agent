@@ -24,7 +24,7 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     client = None
 
 # Get database
-db = client.get_database() if client else None
+db = client.["stock_watchlist"] if client else None
 
 def get_db():
     """
@@ -48,6 +48,7 @@ def insert_document(collection_name, document):
         result = collection.insert_one(document)
         return result.inserted_id
     return None
+
 
 def find_document(collection_name, query):
     """Find a single document in a collection."""
