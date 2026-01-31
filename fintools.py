@@ -262,6 +262,13 @@ def stock_price_averages(stock_id):
     return yearly_avg, monthly_avg
 
 @tool
+def check_database_connection():
+    """
+    Checks the MongoDB database connection.
+    """
+    return mongo.check_connection()
+
+@tool
 def watchlist_information():
     """
     Reads and returns the stock watchlist from the MongoDB database.
@@ -274,10 +281,12 @@ def add_to_watchlist(stock_code, collection_name):
     """
     Adds a stock code to the watchlist according to the specified collection in the MongoDB database stock_watchlist.
     """
-    result = mongo.insert_document(collection_name, {"stock_code": stock_code})
+    result = mongo.insert_document(collection_name, {"stock_code": str(stock_code)})
     if result != None:
+        print(f"Stock code {stock_code} added to watchlist in collection {collection_name}.")
         return f"Stock code {stock_code} added to watchlist in collection {collection_name}."
     else:
+        print(f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}.")
         return f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}."
 
 @tool
@@ -382,7 +391,7 @@ def stock_per(code):
 # Create agent
 agent = create_agent(
     model=model,
-    tools=[calcu_KD_d, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, stock_per, watchlist_information, add_to_watchlist],
+    tools=[calcu_KD_d, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, stock_per, watchlist_information, add_to_watchlist, check_database_connection],
     system_prompt="You are a helpful assistant"
 )
 
