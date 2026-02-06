@@ -9,7 +9,6 @@ from FinMind.data import DataLoader
 from datetime import datetime, timedelta
 import mongodb_connection as mongo
 import yfinance as yf
-import pandas as pd
 import requests
 
 os.environ["LANGSMITH_TRACING"] = "true"
