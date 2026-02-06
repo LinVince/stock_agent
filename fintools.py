@@ -57,7 +57,7 @@ def company_info(stock_id):
 
   return {"stock":stock_id, "summary":long_business_summary, "sector": sector, "industry": industry}
 
-def calcu_KD_w_multiple(codes:list, period=9, init_k=50.0, init_d=50.0):
+def calcu_KD_w_multiple_(codes:list, period=9, init_k=50.0, init_d=50.0):
     """
     Calculate weekly K and D values for multiple/many stocks.
     Extracts weekly High, Low, Close.
@@ -223,7 +223,7 @@ def calcu_KD_w_multiple(codes:list, period=9, init_k=50.0, init_d=50.0):
     Extracts weekly High, Low, Close.
     Return the format {stock:{k:k_value, d:d_value}, stock_2...}
     """
-    return calcu_KD_w_multiple(codes)
+    return calcu_KD_w_multiple_(codes)
 
 
 @tool
@@ -356,7 +356,7 @@ def stock_per(code):
 # Create agent
 agent = create_agent(
     model=model,
-    tools=[calcu_KD_d, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, watchlist_information, add_to_watchlist, check_database_connection, company_info, company_news, stock_per],
+    tools=[calcu_KD_d, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, watchlist_information, add_to_watchlist, check_database_connection, company_news, stock_per],
     system_prompt="You are a helpful assistant"
 )
 
