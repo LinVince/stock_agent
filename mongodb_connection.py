@@ -68,6 +68,31 @@ def close_connection():
         client.close()
         print("MongoDB connection closed.")
 
+def add_collection(collection_name):
+    """
+    Create a new collection if it does not already exist.
+    """
+    if not db:
+        return "Database connection not available."
+
+    existing_collections = db.list_collection_names()
+    
+    if collection_name in existing_collections:
+        return f"Collection '{collection_name}' already exists."
+
+    db.create_collection(collection_name)
+    return f"Collection '{collection_name}' created successfully."
+
+def list_collections():
+    """
+    List all collections in the database.
+    """
+    if not db:
+        return []
+
+    return db.list_collection_names()
+
+
 # Example functions for common operations
 def insert_document(collection_name, document):
     """Insert a single document into a collection."""

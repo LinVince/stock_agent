@@ -123,6 +123,19 @@ def calcu_KD_w_multiple_(codes:list, period=9, init_k=50.0, init_d=50.0):
 
 ###########Put Tools Here#####################
 
+@tool
+def add_collection(collection_name):
+    """
+    Create a new collection if it does not already exist.
+    """
+    return mongo.add_collection(collection_name)
+
+@tool
+def list_collections():
+    """
+    List all collections in the database.
+    """
+    return mongo.list_collections()
 
 @tool
 def calcu_KD_d(code, period=9, init_k=50.0, init_d=50.0):
@@ -319,7 +332,7 @@ def calcu_KD_w_watchlist(collection_name,period=9, init_k=50.0, init_d=50.0):
 
     # Ensure correct dtype
     docs = mongo.find_documents(collection_name)
-    print(docs)
+    
     return calcu_KD_w_multiple(codes=[item["stock"] for item in docs], period=period, init_k=init_k, init_d=init_d)
 
 @tool
@@ -355,7 +368,7 @@ def stock_per(code):
 # Create agent
 agent = create_agent(
     model=model,
-    tools=[calcu_KD_d, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, watchlist_information, add_to_watchlist, check_database_connection, company_news, stock_per],
+    tools=[add_collection, list_collections, calcu_KD_d, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, watchlist_information, add_to_watchlist, check_database_connection, company_news, stock_per],
     system_prompt="You are a very helpful assistant"
 )
 
