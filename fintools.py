@@ -357,7 +357,7 @@ def stock_per(code):
 agent = create_agent(
     model=model,
     tools=[calcu_KD_d, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, watchlist_information, add_to_watchlist, check_database_connection, company_news, stock_per],
-    system_prompt="You are a helpful assistant"
+    system_prompt="You are a very helpful assistant"
 )
 
 def get_response_from_agent(input):
