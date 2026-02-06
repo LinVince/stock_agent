@@ -26,29 +26,7 @@ model = init_chat_model(
 )
 
 
-def read_watchlist():
-    """
-    Reads stock IDs from 'watchlist.txt' and returns them as a list of strings.
-    Each stock ID is expected to be comma-separated on a single line.
-    """
-    try:
-        with open("watchlist.txt", "r") as f:
-            content = f.read().strip()
-            if content:
-                # Remove any empty strings resulting from multiple commas or leading/trailing commas
-                stock_ids = [s.strip() for s in content.split(',') if s.strip()]
-                return stock_ids
-            else:
-                return []
-    except FileNotFoundError:
-        return {"error": "watchlist.txt not found. Please create the file with comma-separated stock IDs."}
-    except Exception as e:
-        return {"error": f"An error occurred while reading watchlist.txt: {e}"}
-
-###########Put Tools Here#####################
-import yfinance as yf
-import pandas as pd
-import requests
+###########Funtions for tools#####################
 
 def stock_data(stock_id):
   """
@@ -66,6 +44,87 @@ def stock_data(stock_id):
 
   df = df.sort_values(by="Date", ascending=True)
   return df
+
+def company_info(stock_id):
+  ticker_symbol = f"{stock_id}.TW" # Example stock
+  ticker = yf.Ticker(ticker_symbol)
+
+   # Get the longBusinessSummary
+  long_business_summary = ticker.info.get("longBusinessSummary") if ticker.info.get("longBusinessSummary") else f"Could not retrieve longBusinessSummary for {ticker_symbol}."
+  sector = ticker.info.get("sector") if ticker.info.get("sector") else f"Couldn't find the sector of {ticker_symbol}"
+  industry = ticker.info.get("industry") if ticker.info.get("industry") else f"Couldn't find industry of {ticker_symbol}"
+
+
+  return {"stock":stock_id, "summary":long_business_summary, "sector": sector, "industry": industry}
+
+def calcu_KD_w_multiple(codes:list, period=9, init_k=50.0, init_d=50.0):
+    """
+    Calculate weekly K and D values for multiple/many stocks.
+    Extracts weekly High, Low, Close.
+    Return the format {stock:{k:k_value, d:d_value}, stock_2...}
+    """
+    result = {}
+    # Ensure correct dtype
+    for code in codes:
+            # --- Load data and ensure correct dtype ---
+      df = stock_data(code)
+      # --- Flatten columns (optional, easier to work with) ---
+      # Select only the first (or relevant) ticker
+      df = df.xs(f"{code}.TW", axis=1, level=1)
+
+      # --- Ensure correct dtype ---
+      for c in ["High", "Low", "Close"]:
+          df[c] = df[c].astype(float)
+
+      # --- Resample to weekly (Friday) ---
+      df = df.resample("W-FRI").agg({
+          "High": "max",
+          "Low": "min",
+          "Close": "last"
+      }).dropna()
+
+      df = df.reset_index()  # optional, for easier handling
+
+
+      highs = df["High"]
+      lows = df["Low"]
+      closes = df["Close"]
+
+
+      # --- Compute RSV ---
+      low_min = lows.rolling(period).min()
+      high_max = highs.rolling(period).max()
+      rsv = (closes - low_min) / (high_max - low_min) * 100
+      rsv = rsv.dropna()
+
+      if rsv.empty:
+          raise ValueError("RSV calculation failed: insufficient weekly data")
+
+      # --- Compute K/D ---
+      k_values = []
+      d_values = []
+      k = float(init_k)
+      d = float(init_d)
+
+      for r in rsv.values:
+          k = (2/3) * k + (1/3) * r
+          d = (2/3) * d + (1/3) * k
+          k_values.append(k)
+          d_values.append(d)
+
+      # --- Attach K/D to weekly dataframe ---
+      df = df.iloc[-len(k_values):].copy()  # align lengths
+      df["K"] = k_values
+      df["D"] = d_values
+
+      result[code] = {"k": k_values[-1], "d":d_values[-1]}
+
+    return str(result)
+
+###########Put Tools Here#####################
+import yfinance as yf
+import pandas as pd
+import requests
 
 @tool
 def calcu_KD_d(code, period=9, init_k=50.0, init_d=50.0):
@@ -164,63 +223,8 @@ def calcu_KD_w_multiple(codes:list, period=9, init_k=50.0, init_d=50.0):
     Extracts weekly High, Low, Close.
     Return the format {stock:{k:k_value, d:d_value}, stock_2...}
     """
-    result = {}
-    # Ensure correct dtype
-    for code in codes:
-            # --- Load data and ensure correct dtype ---
-      df = stock_data(code)
-      # --- Flatten columns (optional, easier to work with) ---
-      # Select only the first (or relevant) ticker
-      df = df.xs(f"{code}.TW", axis=1, level=1)
+    return calcu_KD_w_multiple(codes)
 
-      # --- Ensure correct dtype ---
-      for c in ["High", "Low", "Close"]:
-          df[c] = df[c].astype(float)
-
-      # --- Resample to weekly (Friday) ---
-      df = df.resample("W-FRI").agg({
-          "High": "max",
-          "Low": "min",
-          "Close": "last"
-      }).dropna()
-
-      df = df.reset_index()  # optional, for easier handling
-
-
-      highs = df["High"]
-      lows = df["Low"]
-      closes = df["Close"]
-
-
-      # --- Compute RSV ---
-      low_min = lows.rolling(period).min()
-      high_max = highs.rolling(period).max()
-      rsv = (closes - low_min) / (high_max - low_min) * 100
-      rsv = rsv.dropna()
-
-      if rsv.empty:
-          raise ValueError("RSV calculation failed: insufficient weekly data")
-
-      # --- Compute K/D ---
-      k_values = []
-      d_values = []
-      k = float(init_k)
-      d = float(init_d)
-
-      for r in rsv.values:
-          k = (2/3) * k + (1/3) * r
-          d = (2/3) * d + (1/3) * k
-          k_values.append(k)
-          d_values.append(d)
-
-      # --- Attach K/D to weekly dataframe ---
-      df = df.iloc[-len(k_values):].copy()  # align lengths
-      df["K"] = k_values
-      df["D"] = d_values
-
-      result[code] = {"k": k_values[-1], "d":d_values[-1]}
-
-    return str(result)
 
 @tool
 def stock_price_averages(stock_id):
@@ -277,11 +281,29 @@ def watchlist_information():
     return str(watchlist)
 
 @tool
+def company_news(stock_id):
+  """
+  Fetch and get recent news about this company
+  """
+  # Recent news (availability varies)
+  ticker_symbol = f"{stock_id}.TW" # Example stock
+  ticker = yf.Ticker(ticker_symbol)
+  news = []
+  for item in ticker.news[:10]:
+    news.append(item)
+  return news
+
+
+@tool
 def add_to_watchlist(stock_code, collection_name):
     """
     Adds a stock code to the watchlist according to the specified collection in the MongoDB database stock_watchlist.
     """
-    result = mongo.insert_document(collection_name, {"stock_code": str(stock_code)})
+    company_info_result = company_info(stock_code)
+    if "error" in company_info_result:
+        print(f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}")
+        return f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}"
+    result = mongo.insert_document(collection_name, company_info_result)
     if result != None:
         print(f"Stock code {stock_code} added to watchlist in collection {collection_name}.")
         return f"Stock code {stock_code} added to watchlist in collection {collection_name}."
@@ -290,73 +312,16 @@ def add_to_watchlist(stock_code, collection_name):
         return f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}."
 
 @tool
-def calcu_KD_w_watchlist( period=9, init_k=50.0, init_d=50.0):
+def calcu_KD_w_watchlist(collection_name,period=9, init_k=50.0, init_d=50.0):
     """
-    Calculate weekly K and D values of the stocks in the watchlist.
+    Calculate weekly K and D values of the stocks in a collection of the watchlist database.It extracts the stock codes from the specified collection from the parameter (argument), then calculates K and D values for each stock, and finally returns the results in a dictionary format.
     Return the format {stock:{k:k_value, d:d_value}, stock_2...}
     """
     print("Watch list search....")
 
-    result = {}
     # Ensure correct dtype
-    codes = read_watchlist()
-    for code in codes:
-      try:
-        # --- Load data and ensure correct dtype ---
-        df = stock_data(str(code))
-        # --- Flatten columns (optional, easier to work with) ---
-        # Select only the first (or relevant) ticker
-        df = df.xs(f"{code}.TW", axis=1, level=1)
-      except:
-        continue
-      # --- Ensure correct dtype ---
-      for c in ["High", "Low", "Close"]:
-          df[c] = df[c].astype(float)
-
-      # --- Resample to weekly (Friday) ---
-      df = df.resample("W-FRI").agg({
-          "High": "max",
-          "Low": "min",
-          "Close": "last"
-      }).dropna()
-
-      df = df.reset_index()  # optional, for easier handling
-
-
-      highs = df["High"]
-      lows = df["Low"]
-      closes = df["Close"]
-
-
-      # --- Compute RSV ---
-      low_min = lows.rolling(period).min()
-      high_max = highs.rolling(period).max()
-      rsv = (closes - low_min) / (high_max - low_min) * 100
-      rsv = rsv.dropna()
-
-      if rsv.empty:
-          raise ValueError("RSV calculation failed: insufficient weekly data")
-
-      # --- Compute K/D ---
-      k_values = []
-      d_values = []
-      k = float(init_k)
-      d = float(init_d)
-
-      for r in rsv.values:
-          k = (2/3) * k + (1/3) * r
-          d = (2/3) * d + (1/3) * k
-          k_values.append(k)
-          d_values.append(d)
-
-      # --- Attach K/D to weekly dataframe ---
-      df = df.iloc[-len(k_values):].copy()  # align lengths
-      df["K"] = k_values
-      df["D"] = d_values
-
-      result[code] = {"k": k_values[-1], "d":d_values[-1]}
-
-    return str(result)
+    codes = mongo.find_documents(collection_name)
+    return calcu_KD_w_multiple(codes=[item["stock"] for item in codes], period=period, init_k=init_k, init_d=init_d)
 
 @tool
 def stock_per(code):
@@ -391,7 +356,7 @@ def stock_per(code):
 # Create agent
 agent = create_agent(
     model=model,
-    tools=[calcu_KD_d, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, stock_per, watchlist_information, add_to_watchlist, check_database_connection],
+    tools=[calcu_KD_d, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, watchlist_information, add_to_watchlist, check_database_connection, company_info, company_news, stock_per],
     system_prompt="You are a helpful assistant"
 )
 
