@@ -1,15 +1,13 @@
 from langchain.chat_models import init_chat_model
 from langchain.tools import tool
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage
 import os
-import numpy as np
 import pandas as pd
 from FinMind.data import DataLoader
 from datetime import datetime, timedelta
 import mongodb_connection as mongo
 import yfinance as yf
-import requests
 
 os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["LANGSMITH_ENDPOINT"] = "https://api.smith.langchain.com"
@@ -273,11 +271,11 @@ def check_database_connection():
     return mongo.check_db_connection()
 
 @tool
-def watchlist_information():
+def watchlist_information(collection_name):
     """
-    Reads and returns the stock watchlist from the MongoDB database.
+    Users input a collection name as an argument. This tool reads and returns the stock watchlist collection from the MongoDB database. The returned information includes the stock codes and their corresponding company information (summary, sector, industry) that are stored in the specified collection. The output is formatted from a list to a string representation of the watchlist data.
     """
-    watchlist = mongo.get_db()
+    watchlist = mongo.find_documents(collection_name)
     return str(watchlist)
 
 @tool
@@ -320,8 +318,9 @@ def calcu_KD_w_watchlist(collection_name,period=9, init_k=50.0, init_d=50.0):
     print("Watch list search....")
 
     # Ensure correct dtype
-    codes = mongo.find_documents(collection_name)
-    return calcu_KD_w_multiple(codes=[item["stock"] for item in codes], period=period, init_k=init_k, init_d=init_d)
+    docs = mongo.find_documents(collection_name)
+    print(docs)
+    return calcu_KD_w_multiple(codes=[item["stock"] for item in docs], period=period, init_k=init_k, init_d=init_d)
 
 @tool
 def stock_per(code):
@@ -375,5 +374,4 @@ def get_response_from_agent(input):
       if isinstance(msg, AIMessage):
           return msg.content
   return None
-
 
