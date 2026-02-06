@@ -8,6 +8,9 @@ import pandas as pd
 from FinMind.data import DataLoader
 from datetime import datetime, timedelta
 import mongodb_connection as mongo
+import yfinance as yf
+import pandas as pd
+import requests
 
 os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["LANGSMITH_ENDPOINT"] = "https://api.smith.langchain.com"
@@ -122,9 +125,7 @@ def calcu_KD_w_multiple_(codes:list, period=9, init_k=50.0, init_d=50.0):
     return str(result)
 
 ###########Put Tools Here#####################
-import yfinance as yf
-import pandas as pd
-import requests
+
 
 @tool
 def calcu_KD_d(code, period=9, init_k=50.0, init_d=50.0):
