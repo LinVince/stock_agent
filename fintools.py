@@ -399,13 +399,13 @@ def stock_price_averages(stock_id):
     df = df.sort_index()
 
     # --- Yearly average ---
-    yearly_avg = df.resample('Y').mean()
+    yearly_avg = df.resample('YE').mean()
 
     # --- Monthly averages per year ---
     monthly_avg = {}
     for year in df.index.year.unique():
         year_df = df[df.index.year == year]
-        monthly_avg[year] = year_df.resample('M').mean()
+        monthly_avg[year] = year_df.resample('ME').mean()
 
     return yearly_avg, monthly_avg
 
