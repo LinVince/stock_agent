@@ -4,6 +4,7 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 import os
 import pandas as pd
+import numpy as np
 from FinMind.data import DataLoader
 from datetime import datetime, timedelta
 import mongodb_connection as mongo
