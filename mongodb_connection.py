@@ -134,3 +134,19 @@ def delete_document(collection_name, query):
         result = collection.delete_one(query)
         return result.deleted_count
     return 0
+
+def fetch_all():
+    """
+    Fetch all documents from all collections in the database.
+    Returns a dictionary: {collection_name: [documents]}
+    """
+    if not db:
+        return {}
+
+    all_data = {}
+
+    for collection_name in db.list_collection_names():
+        collection = db[collection_name]
+        all_data[collection_name] = list(collection.find())
+
+    return all_data

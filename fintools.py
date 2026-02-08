@@ -478,15 +478,25 @@ def add_m_to_watchlist(stock_codes, collection_name):
 @tool
 def calcu_KD_w_watchlist(collection_name,period=9, init_k=50.0, init_d=50.0):
     """
-    Calculate weekly K and D values of the stocks in a collection of the watchlist database.It extracts the stock codes from the specified collection from the parameter (argument), then calculates K and D values for each stock, and finally returns the results in a dictionary format.
-    Return the format {stock:{k:k_value, d:d_value}, stock_2...}
+    Calculate weekly K and D values of all the stocks in the watchlist database. It calculates K and D values for each stock, and finally returns the results in a dictionary format.
+    The output format is {stock_code: {k: k_value, d: d_value}, stock_code_2: {...}, ...}
     """
     print("Watch list search....")
 
     # Ensure correct dtype
-    docs = mongo.find_documents(collection_name)
-    
-    return calcu_KD_w_multiple_(codes=[item["stock"] for item in docs], period=period, init_k=init_k, init_d=init_d)
+    docs = mongo.fetch_all()
+    stocks = []
+    for items in docs.values():
+        for item in items:
+            if "stock" not in item:
+                print(f"Document {item} does not contain 'stock' field. Skipping.")
+                continue
+            if not isinstance(item["stock"], str):
+                print(f"Document {item} has 'stock' field that is not a string. Skipping.")
+                continue
+            stocks.append(item["stock"])
+
+    return calcu_KD_w_multiple_(codes=stocks, period=period, init_k=init_k, init_d=init_d)
 
 @tool
 def stock_per(code):
