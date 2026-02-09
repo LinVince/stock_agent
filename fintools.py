@@ -475,21 +475,20 @@ def add_to_watchlist(stock_code, collection_name):
         return f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}."
 
 @tool
-def delete_from_watchlist(stock_code, collection_name):
+def delete_from_watchlist(collection_name, stock_code):
     """
-    delete a stock code from the watchlist according to the specified collection in the MongoDB database stock_watchlist.
+    delete a stock code from the watchlist according to the specified collection and stock code in the MongoDB database stock_watchlist.
     """
-    company_info_result = company_info(stock_code)
-    if "error" in company_info_result:
-        print(f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}")
-        return f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}"
-    result = mongo.insert_document(collection_name, company_info_result)
+    result = mongo.delete_by_stock(collection_name, stock_code)
+    if "error" in result:
+        print(f"Failed to delete company info for stock code {stock_code}: {result['error']}")
+        return f"Failed to delete company info for stock code {stock_code}: {result['error']}"
     if result != None:
-        print(f"Stock code {stock_code} added to watchlist in collection {collection_name}.")
-        return f"Stock code {stock_code} added to watchlist in collection {collection_name}."
+        print(f"Stock code {stock_code} deleted from watchlist in collection {collection_name}.")
+        return f"Stock code {stock_code} deleted from watchlist in collection {collection_name}."
     else:
-        print(f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}.")
-        return f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}."
+        print(f"Failed to delete stock code {stock_code} from watchlist in collection {collection_name}.")
+        return f"Failed to delete stock code {stock_code} from watchlist in collection {collection_name}."
 
 
 @tool
@@ -569,7 +568,7 @@ def stock_per(code):
 # Create agent
 agent = create_agent(
     model=model,
-    tools=[add_collection, list_collections, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, calcu_KD_w_series, watchlist_information, add_to_watchlist, add_m_to_watchlist, check_database_connection, company_news, stock_per],
+    tools=[add_collection, list_collections, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, calcu_KD_w_series, watchlist_information, add_to_watchlist, add_m_to_watchlist, delete_from_watchlist, check_database_connection, company_news, stock_per],
     system_prompt="You are a very helpful assistant"
 )
 
