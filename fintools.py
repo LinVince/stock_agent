@@ -37,11 +37,12 @@ def stock_data(stock_id):
   df = yf.download(ticker, period="90d", interval="1d")
   df.dropna(inplace=True)
   if df.empty or len(df) < 10:
-      return {"error": "資料不足或代號錯誤"}
-  print(len(df))
+      ticker = f"{stock_id}.TWO"
+      df = yf.download(ticker, period="90d", interval="1d")
+      df.dropna(inplace=True)
 
-  if len(df) < 2:
-      return {"error": "計算後資料不足"}
+      if len(df) < 2:
+          return {"error": "No information found"}
 
   df = df.sort_values(by="Date", ascending=True)
   return df
@@ -51,10 +52,15 @@ def company_info(stock_id):
   ticker = yf.Ticker(ticker_symbol)
 
    # Get the longBusinessSummary
-  long_business_summary = ticker.info.get("longBusinessSummary") if ticker.info.get("longBusinessSummary") else f"Could not retrieve longBusinessSummary for {ticker_symbol}."
-  sector = ticker.info.get("sector") if ticker.info.get("sector") else f"Couldn't find the sector of {ticker_symbol}"
-  industry = ticker.info.get("industry") if ticker.info.get("industry") else f"Couldn't find industry of {ticker_symbol}"
-
+  if ticker.info.get("longBusinessSummary"):
+    long_business_summary = ticker.info.get("longBusinessSummary")
+    sector = ticker.info.get("sector") if ticker.info.get("sector") else f"Couldn't find the sector of {ticker_symbol}"
+    industry = ticker.info.get("industry") if ticker.info.get("industry") else f"Couldn't find industry of {ticker_symbol}"
+  elif yf.Ticker(f"{stock_id}.TWO").info.get("longBusinessSummary"):
+    long_business_summary = yf.Ticker(f"{stock_id}.TWO").info.get("longBusinessSummary")
+    sector = yf.Ticker(f"{stock_id}.TWO").info.get("sector") if yf.Ticker(f"{stock_id}.TWO").info.get("sector") else f"Couldn't find the sector of {ticker_symbol}"
+    industry = yf.Ticker(f"{stock_id}.TWO").info.get("industry") if yf.Ticker(f"{stock_id}.TWO").info.get("industry") else f"Couldn't find the industry of {ticker_symbol}"
+     
 
   return {"stock":stock_id, "summary":long_business_summary, "sector": sector, "industry": industry}
 
@@ -467,6 +473,24 @@ def add_to_watchlist(stock_code, collection_name):
     else:
         print(f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}.")
         return f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}."
+
+@tool
+def delete_from_watchlist(stock_code, collection_name):
+    """
+    delete a stock code from the watchlist according to the specified collection in the MongoDB database stock_watchlist.
+    """
+    company_info_result = company_info(stock_code)
+    if "error" in company_info_result:
+        print(f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}")
+        return f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}"
+    result = mongo.insert_document(collection_name, company_info_result)
+    if result != None:
+        print(f"Stock code {stock_code} added to watchlist in collection {collection_name}.")
+        return f"Stock code {stock_code} added to watchlist in collection {collection_name}."
+    else:
+        print(f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}.")
+        return f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}."
+
 
 @tool
 def add_m_to_watchlist(stock_codes, collection_name):
