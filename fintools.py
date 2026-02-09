@@ -33,11 +33,13 @@ def stock_data(stock_id):
   """
   This tool return a dataframe of a stock for the past 90 days
   """
-  ticker = f"{stock_id}.TW"
+  stock_type = "TW"
+  ticker = f"{stock_id}.{stock_type}"
   df = yf.download(ticker, period="90d", interval="1d")
   df.dropna(inplace=True)
   if df.empty or len(df) < 10:
-      ticker = f"{stock_id}.TWO"
+      stock_type = "TWO"
+      ticker = f"{stock_id}.{stock_type}"
       df = yf.download(ticker, period="90d", interval="1d")
       df.dropna(inplace=True)
 
@@ -45,7 +47,7 @@ def stock_data(stock_id):
           return {"error": "No information found"}
 
   df = df.sort_values(by="Date", ascending=True)
-  return df
+  return df, stock_type
 
 def company_info(stock_id):
   ticker_symbol = f"{stock_id}.TW" # Example stock
@@ -69,7 +71,7 @@ def calcu_KD_d(code, period=9, init_k=50.0, init_d=50.0):
     Calculate K and D values for a stock with a day as a unit.
     """
     # Ensure correct dtype
-    df = stock_data(code)
+    df, stock_type = stock_data(code)
     df = df.copy()
     for c in ["High", "Low", "Close"]:
         df[c] = df[c].astype(float)
@@ -112,10 +114,10 @@ def calcu_KD_w_multiple_(codes:list, period=9, init_k=50.0, init_d=50.0):
     for code in codes:
         try:
             # --- Load data and ensure correct dtype ---
-            df = stock_data(code)
+            df, stock_type = stock_data(code)
             # --- Flatten columns (optional, easier to work with) ---
             # Select only the first (or relevant) ticker
-            df = df.xs(f"{code}.TW", axis=1, level=1)
+            df = df.xs(f"{code}.{stock_type}", axis=1, level=1)
         
             # --- Ensure correct dtype ---
             for c in ["High", "Low", "Close"]:
@@ -270,10 +272,10 @@ def calcu_KD_w(code, period=9, init_k=50.0, init_d=50.0):
     """
     Calculate K and D values for a stock with a week as a unit.
     """
-    df = stock_data(code)
+    df, stock_type = stock_data(code)
     df = df.copy()
     try: 
-        df = df.xs(f"{code}.TW", axis=1, level=1)
+        df = df.xs(f"{code}.{stock_type}", axis=1, level=1)
     
         # --- Ensure correct dtype ---
         for c in ["High", "Low", "Close"]:
@@ -344,11 +346,11 @@ def calcu_KD_w_series(
     Calculate consecutive weekly K/D values and detect golden/death cross signals.
     """
     
-    df = stock_data(code)
+    df, stock_type = stock_data(code)
     df = df.copy()
 
     try: 
-        df = df.xs(f"{code}.TW", axis=1, level=1)
+        df = df.xs(f"{code}.{stock_type}", axis=1, level=1)
     
         for c in ["High", "Low", "Close"]:
             df[c] = df[c].astype(float)
@@ -485,10 +487,14 @@ def stock_price_averages(stock_id):
 
     # Fetch 5 years of daily data
     df = yf.download(ticker, period="5y", interval="1d")
-
-    df.dropna(inplace=True)
-    if df.empty:
-        return {"error": "No information or code error"}
+    if df.empty or len(df) < 10:
+          stock_type = "TWO"
+          ticker = f"{stock_id}.{stock_type}"
+          df = yf.download(ticker, period="90d", interval="1d")
+          df.dropna(inplace=True)
+    
+          if len(df) < 2:
+              return {"error": "No information found"}
 
     # Ensure datetime index
     if not isinstance(df.index, pd.DatetimeIndex):
@@ -518,18 +524,21 @@ def calcu_KD_w_watchlist(period=9, init_k=50.0, init_d=50.0):
 
     # Ensure correct dtype
     docs = mongo.fetch_all()
-    stocks = []
-    for items in docs.values():
-        for item in items:
-            if "stock" not in item:
+    result = {}
+    for collection_name, documents in docs.items():
+        stock_codes = []
+        for document in documents:
+            if "stock" not in document:
                 print(f"Document {item} does not contain 'stock' field. Skipping.")
                 continue
-            if not isinstance(item["stock"], str):
+            if not isinstance(document["stock"], str):
                 print(f"Document {item} has 'stock' field that is not a string. Skipping.")
                 continue
-            stocks.append(item["stock"])
+            stock_codes.append(document["stock"])
+            
+        result[collection_name] = calcu_KD_w_multiple_(codes=stock_codes, period=period, init_k=init_k, init_d=init_d)
 
-    return calcu_KD_w_multiple_(codes=stocks, period=period, init_k=init_k, init_d=init_d)
+    return str(result)
 
 @tool
 def stock_per(code):
@@ -564,16 +573,21 @@ def company_news(stock_id):
   """
   Fetch and get recent news about this company
   """
+  news = []
   # Recent news (availability varies)
   ticker_symbol = f"{stock_id}.TW" # Example stock
   ticker = yf.Ticker(ticker_symbol)
-  news = []
-  for item in ticker.news[:10]:
-    news.append(item)
-  return news
+  if len(ticker.news) == 0:
+    # Recent news (availability varies)
+    ticker_symbol = f"{stock_id}.TWO" # Example stock
+    ticker = yf.Ticker(ticker_symbol)
+    if len(ticker.news) == 0:
+        return "No news found"
+  
+  for i in ticker.news:
+    news.append(f"title: {i['content']['title']}, summary: {i['content']['summary']}, Date: {i['content']['pubDate']}")
 
-
-
+  return str(news)
 
 
 ##################Tool Ends###################
