@@ -509,7 +509,7 @@ def stock_price_averages(stock_id):
     return yearly_avg, monthly_avg
 
 @tool
-def calcu_KD_w_watchlist(collection_name,period=9, init_k=50.0, init_d=50.0):
+def calcu_KD_w_watchlist(period=9, init_k=50.0, init_d=50.0):
     """
     Calculate weekly K and D values of all the stocks in all the collections within the watchlist database. It calculates K and D values for each stock, and finally returns the results in a dictionary format.
     The output format is {stock_code: {k: k_value, d: d_value}, stock_code_2: {...}, ...}
