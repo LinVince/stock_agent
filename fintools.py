@@ -169,8 +169,23 @@ def calcu_KD_w_multiple_(codes:list, period=9, init_k=50.0, init_d=50.0):
     
     return str(result)
 
-###########Put Tools Here#####################
+########### Put Tools Here #####################
+#### Database ####
+@tool
+def check_database_connection():
+    """
+    Checks the MongoDB database connection.
+    """
+    return mongo.check_db_connection()
 
+@tool
+def fetch_all_stocks():
+    """
+    Fetch all stocks information stored in the watchlist database 
+    The returned values is a string {collection_name: [ {stock: stock_code, ...}, {}]
+    """
+    return str(mongo.fetch_all())
+    
 @tool
 def add_collection(collection_name):
     """
@@ -185,6 +200,70 @@ def list_collections():
     """
     return mongo.list_collections()
 
+@tool
+def collection_information(collection_name):
+    """
+    Users input a collection name as an argument. This tool reads and returns the stocks in the collection from the MongoDB watchlist database. The returned information includes the stock codes and their corresponding company information (summary, sector, industry) that are stored in the specified collection. The output is formatted from a list to a string representation of the watchlist data.
+    """
+    watchlist = mongo.find_documents(collection_name)
+    return str(watchlist)
+
+@tool
+def add_to_watchlist(stock_code, collection_name):
+    """
+    Adds a stock code to the watchlist according to the specified collection in the MongoDB database stock_watchlist.
+    """
+    company_info_result = company_info(stock_code)
+    if "error" in company_info_result:
+        print(f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}")
+        return f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}"
+    result = mongo.insert_document(collection_name, company_info_result)
+    if result != None:
+        print(f"Stock code {stock_code} added to watchlist in collection {collection_name}.")
+        return f"Stock code {stock_code} added to watchlist in collection {collection_name}."
+    else:
+        print(f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}.")
+        return f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}."
+
+
+@tool
+def add_m_to_watchlist(stock_codes, collection_name):
+    """
+    Add multiple stock codes to the watchlist according to the specified collection in the MongoDB database stock_watchlist.
+    """
+    results = []
+    for stock_code in stock_codes:
+        company_info_result = company_info(stock_code)
+        if "error" in company_info_result:
+            print(f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}")
+            results.append(f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}")
+            continue
+        result = mongo.insert_document(collection_name, company_info_result)
+        if result != None:
+            print(f"Stock code {stock_code} added to watchlist in collection {collection_name}.")
+            results.append(f"Stock code {stock_code} added to watchlist in collection {collection_name}.")
+        else:
+            print(f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}.")
+            results.append(f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}.")
+    return results
+
+@tool
+def delete_from_watchlist(collection_name, stock_code):
+    """
+    delete a stock code from the watchlist according to the specified collection and stock code in the MongoDB database stock_watchlist.
+    """
+    result = mongo.delete_by_stock(collection_name, stock_code)
+    if "error" in result:
+        print(f"Failed to delete company info for stock code {stock_code}: {result['error']}")
+        return f"Failed to delete company info for stock code {stock_code}: {result['error']}"
+    if result != None:
+        print(f"Stock code {stock_code} deleted from watchlist in collection {collection_name}.")
+        return f"Stock code {stock_code} deleted from watchlist in collection {collection_name}."
+    else:
+        print(f"Failed to delete stock code {stock_code} from watchlist in collection {collection_name}.")
+        return f"Failed to delete stock code {stock_code} from watchlist in collection {collection_name}."
+
+#### Calculation ####
 
 @tool
 def calcu_KD_w(code, period=9, init_k=50.0, init_d=50.0):
@@ -430,92 +509,9 @@ def stock_price_averages(stock_id):
     return yearly_avg, monthly_avg
 
 @tool
-def check_database_connection():
-    """
-    Checks the MongoDB database connection.
-    """
-    return mongo.check_db_connection()
-
-@tool
-def watchlist_information(collection_name):
-    """
-    Users input a collection name as an argument. This tool reads and returns the stock watchlist collection from the MongoDB database. The returned information includes the stock codes and their corresponding company information (summary, sector, industry) that are stored in the specified collection. The output is formatted from a list to a string representation of the watchlist data.
-    """
-    watchlist = mongo.find_documents(collection_name)
-    return str(watchlist)
-
-@tool
-def company_news(stock_id):
-  """
-  Fetch and get recent news about this company
-  """
-  # Recent news (availability varies)
-  ticker_symbol = f"{stock_id}.TW" # Example stock
-  ticker = yf.Ticker(ticker_symbol)
-  news = []
-  for item in ticker.news[:10]:
-    news.append(item)
-  return news
-
-@tool
-def add_to_watchlist(stock_code, collection_name):
-    """
-    Adds a stock code to the watchlist according to the specified collection in the MongoDB database stock_watchlist.
-    """
-    company_info_result = company_info(stock_code)
-    if "error" in company_info_result:
-        print(f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}")
-        return f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}"
-    result = mongo.insert_document(collection_name, company_info_result)
-    if result != None:
-        print(f"Stock code {stock_code} added to watchlist in collection {collection_name}.")
-        return f"Stock code {stock_code} added to watchlist in collection {collection_name}."
-    else:
-        print(f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}.")
-        return f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}."
-
-@tool
-def delete_from_watchlist(collection_name, stock_code):
-    """
-    delete a stock code from the watchlist according to the specified collection and stock code in the MongoDB database stock_watchlist.
-    """
-    result = mongo.delete_by_stock(collection_name, stock_code)
-    if "error" in result:
-        print(f"Failed to delete company info for stock code {stock_code}: {result['error']}")
-        return f"Failed to delete company info for stock code {stock_code}: {result['error']}"
-    if result != None:
-        print(f"Stock code {stock_code} deleted from watchlist in collection {collection_name}.")
-        return f"Stock code {stock_code} deleted from watchlist in collection {collection_name}."
-    else:
-        print(f"Failed to delete stock code {stock_code} from watchlist in collection {collection_name}.")
-        return f"Failed to delete stock code {stock_code} from watchlist in collection {collection_name}."
-
-
-@tool
-def add_m_to_watchlist(stock_codes, collection_name):
-    """
-    Add multiple stock codes to the watchlist according to the specified collection in the MongoDB database stock_watchlist.
-    """
-    results = []
-    for stock_code in stock_codes:
-        company_info_result = company_info(stock_code)
-        if "error" in company_info_result:
-            print(f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}")
-            results.append(f"Failed to retrieve company info for stock code {stock_code}: {company_info_result['error']}")
-            continue
-        result = mongo.insert_document(collection_name, company_info_result)
-        if result != None:
-            print(f"Stock code {stock_code} added to watchlist in collection {collection_name}.")
-            results.append(f"Stock code {stock_code} added to watchlist in collection {collection_name}.")
-        else:
-            print(f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}.")
-            results.append(f"Failed to add stock code {stock_code} to watchlist in collection {collection_name}.")
-    return results
-
-@tool
 def calcu_KD_w_watchlist(collection_name,period=9, init_k=50.0, init_d=50.0):
     """
-    Calculate weekly K and D values of all the stocks in the watchlist database. It calculates K and D values for each stock, and finally returns the results in a dictionary format.
+    Calculate weekly K and D values of all the stocks in all the collections within the watchlist database. It calculates K and D values for each stock, and finally returns the results in a dictionary format.
     The output format is {stock_code: {k: k_value, d: d_value}, stock_code_2: {...}, ...}
     """
     print("Watch list search....")
@@ -562,13 +558,31 @@ def stock_per(code):
   print (result)
   return result
 
+#### Company information ####
+@tool
+def company_news(stock_id):
+  """
+  Fetch and get recent news about this company
+  """
+  # Recent news (availability varies)
+  ticker_symbol = f"{stock_id}.TW" # Example stock
+  ticker = yf.Ticker(ticker_symbol)
+  news = []
+  for item in ticker.news[:10]:
+    news.append(item)
+  return news
+
+
+
+
+
 ##################Tool Ends###################
 
 
 # Create agent
 agent = create_agent(
     model=model,
-    tools=[add_collection, list_collections, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, calcu_KD_w_series, watchlist_information, add_to_watchlist, add_m_to_watchlist, delete_from_watchlist, check_database_connection, company_news, stock_per],
+    tools=[fetch_all_stocks, add_collection, list_collections, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, calcu_KD_w_series, collection_information, add_to_watchlist, add_m_to_watchlist, delete_from_watchlist, check_database_connection, company_news, stock_per],
     system_prompt="You are a very helpful assistant"
 )
 
