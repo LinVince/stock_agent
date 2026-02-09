@@ -150,3 +150,18 @@ def fetch_all():
         all_data[collection_name] = list(collection.find())
 
     return all_data
+
+def delete_by_stock(collection_name, stock):
+    """
+    Delete a single document from a collection by stock symbol.
+    """
+    if not db:
+        return "Database connection not available."
+
+    collection = db[collection_name]
+    result = collection.delete_one({"stock": stock})
+
+    if result.deleted_count == 1:
+        return f"Stock '{stock}' deleted successfully."
+    else:
+        return f"No document found with stock '{stock}'."
