@@ -58,87 +58,6 @@ def company_info(stock_id):
 
   return {"stock":stock_id, "summary":long_business_summary, "sector": sector, "industry": industry}
 
-def calcu_KD_w_multiple_(codes:list, period=9, init_k=50.0, init_d=50.0):
-    """
-    Calculate weekly K and D values for multiple/many stocks.
-    Extracts weekly High, Low, Close.
-    Return the format {stock:{k:k_value, d:d_value}, stock_2...}
-    """
-    result = {}
-    # Ensure correct dtype
-    for code in codes:
-            # --- Load data and ensure correct dtype ---
-      df = stock_data(code)
-      # --- Flatten columns (optional, easier to work with) ---
-      # Select only the first (or relevant) ticker
-      df = df.xs(f"{code}.TW", axis=1, level=1)
-
-      # --- Ensure correct dtype ---
-      for c in ["High", "Low", "Close"]:
-          df[c] = df[c].astype(float)
-
-      # --- Resample to weekly (Friday) ---
-      df = df.resample("W-FRI").agg({
-          "High": "max",
-          "Low": "min",
-          "Close": "last"
-      }).dropna()
-
-      df = df.reset_index()  # optional, for easier handling
-
-
-      highs = df["High"]
-      lows = df["Low"]
-      closes = df["Close"]
-
-
-      # --- Compute RSV ---
-      low_min = lows.rolling(period).min()
-      high_max = highs.rolling(period).max()
-      rsv = (closes - low_min) / (high_max - low_min) * 100
-      rsv = rsv.dropna()
-
-      if rsv.empty:
-          raise ValueError("RSV calculation failed: insufficient weekly data")
-
-      # --- Compute K/D ---
-      k_values = []
-      d_values = []
-      k = float(init_k)
-      d = float(init_d)
-
-      for r in rsv.values:
-          k = (2/3) * k + (1/3) * r
-          d = (2/3) * d + (1/3) * k
-          k_values.append(k)
-          d_values.append(d)
-
-      # --- Attach K/D to weekly dataframe ---
-      df = df.iloc[-len(k_values):].copy()  # align lengths
-      df["K"] = k_values
-      df["D"] = d_values
-
-      result[code] = {"k": k_values[-1], "d":d_values[-1]}
-
-    return str(result)
-
-###########Put Tools Here#####################
-
-@tool
-def add_collection(collection_name):
-    """
-    Create a new collection if it does not already exist.
-    """
-    return mongo.add_collection(collection_name)
-
-@tool
-def list_collections():
-    """
-    List all collections in the database.
-    """
-    return mongo.list_collections()
-
-@tool
 def calcu_KD_d(code, period=9, init_k=50.0, init_d=50.0):
     """
     Calculate K and D values for a stock with a day as a unit.
@@ -175,6 +94,92 @@ def calcu_KD_d(code, period=9, init_k=50.0, init_d=50.0):
     return round(k, 2), round(d, 2)
 
 
+
+def calcu_KD_w_multiple_(codes:list, period=9, init_k=50.0, init_d=50.0):
+    """
+    Calculate weekly K and D values for multiple/many stocks.
+    Extracts weekly High, Low, Close.
+    Return the format {stock:{k:k_value, d:d_value}, stock_2...}
+    """
+    result = {}
+    # Ensure correct dtype
+    for code in codes:
+        try:
+            # --- Load data and ensure correct dtype ---
+            df = stock_data(code)
+            # --- Flatten columns (optional, easier to work with) ---
+            # Select only the first (or relevant) ticker
+            df = df.xs(f"{code}.TW", axis=1, level=1)
+        
+            # --- Ensure correct dtype ---
+            for c in ["High", "Low", "Close"]:
+                df[c] = df[c].astype(float)
+        
+            # --- Resample to weekly (Friday) ---
+            df = df.resample("W-FRI").agg({
+              "High": "max",
+              "Low": "min",
+              "Close": "last"
+            }).dropna()
+        
+            df = df.reset_index()  # optional, for easier handling
+        
+        
+            highs = df["High"]
+            lows = df["Low"]
+            closes = df["Close"]
+        
+        
+            # --- Compute RSV ---
+            low_min = lows.rolling(period).min()
+            high_max = highs.rolling(period).max()
+            rsv = (closes - low_min) / (high_max - low_min) * 100
+            rsv = rsv.dropna()
+        
+            if rsv.empty:
+                raise ValueError("RSV calculation failed: insufficient weekly data")
+        
+            # --- Compute K/D ---
+            k_values = []
+            d_values = []
+            k = float(init_k)
+            d = float(init_d)
+        
+            for r in rsv.values:
+                k = (2/3) * k + (1/3) * r
+                d = (2/3) * d + (1/3) * k
+                k_values.append(k)
+                d_values.append(d)
+        
+            # --- Attach K/D to weekly dataframe ---
+            df = df.iloc[-len(k_values):].copy()  # align lengths
+            df["K"] = k_values
+            df["D"] = d_values
+        
+            result[code] = {"k": k_values[-1], "d":d_values[-1]}
+
+        except:
+            result[code] = "No information was fetched"
+    
+    return str(result)
+
+###########Put Tools Here#####################
+
+@tool
+def add_collection(collection_name):
+    """
+    Create a new collection if it does not already exist.
+    """
+    return mongo.add_collection(collection_name)
+
+@tool
+def list_collections():
+    """
+    List all collections in the database.
+    """
+    return mongo.list_collections()
+
+
 @tool
 def calcu_KD_w(code, period=9, init_k=50.0, init_d=50.0):
     """
@@ -182,49 +187,53 @@ def calcu_KD_w(code, period=9, init_k=50.0, init_d=50.0):
     """
     df = stock_data(code)
     df = df.copy()
-    df = df.xs(f"{code}.TW", axis=1, level=1)
-
-    # --- Ensure correct dtype ---
-    for c in ["High", "Low", "Close"]:
-        df[c] = df[c].astype(float)
-
-    # --- Resample to weekly (Friday) ---
-    df = df.resample("W-FRI").agg({
-        "High": "max",
-        "Low": "min",
-        "Close": "last"
-    }).dropna()
-
-    df = df.reset_index()  # optional, for easier handling
-
-    highs = df["High"]
-    lows = df["Low"]
-    closes = df["Close"]
-
-
-    # --- Compute RSV ---
-    low_min = lows.rolling(period).min()
-    high_max = highs.rolling(period).max()
-    rsv = (closes - low_min) / (high_max - low_min) * 100
-    rsv = rsv.dropna()
-
-    if rsv.empty:
-        raise ValueError("RSV calculation failed: insufficient weekly data")
-
-    # --- Compute K/D ---
-    k_values = []
-    d_values = []
-    k = float(init_k)
-    d = float(init_d)
-
-    for r in rsv.values:
-        k = (2/3) * k + (1/3) * r
-        d = (2/3) * d + (1/3) * k
-        k_values.append(k)
-        d_values.append(d)
-
-    result = {"k": k_values[-1], "d":d_values[-1]}
-
+    try: 
+        df = df.xs(f"{code}.TW", axis=1, level=1)
+    
+        # --- Ensure correct dtype ---
+        for c in ["High", "Low", "Close"]:
+            df[c] = df[c].astype(float)
+    
+        # --- Resample to weekly (Friday) ---
+        df = df.resample("W-FRI").agg({
+            "High": "max",
+            "Low": "min",
+            "Close": "last"
+        }).dropna()
+    
+        df = df.reset_index()  # optional, for easier handling
+    
+        highs = df["High"]
+        lows = df["Low"]
+        closes = df["Close"]
+    
+    
+        # --- Compute RSV ---
+        low_min = lows.rolling(period).min()
+        high_max = highs.rolling(period).max()
+        rsv = (closes - low_min) / (high_max - low_min) * 100
+        rsv = rsv.dropna()
+    
+        if rsv.empty:
+            raise ValueError("RSV calculation failed: insufficient weekly data")
+    
+        # --- Compute K/D ---
+        k_values = []
+        d_values = []
+        k = float(init_k)
+        d = float(init_d)
+    
+        for r in rsv.values:
+            k = (2/3) * k + (1/3) * r
+            d = (2/3) * d + (1/3) * k
+            k_values.append(k)
+            d_values.append(d)
+    
+        result = {"k": k_values[-1], "d":d_values[-1]}
+    
+    except:
+        result = "The data cannot be fetched"
+        
     return str(result)
 
 
@@ -249,125 +258,130 @@ def calcu_KD_w_series(
     """
     Calculate consecutive weekly K/D values and detect golden/death cross signals.
     """
-
+    
     df = stock_data(code)
     df = df.copy()
-    df = df.xs(f"{code}.TW", axis=1, level=1)
 
-    for c in ["High", "Low", "Close"]:
-        df[c] = df[c].astype(float)
-
-    # Weekly (Friday)
-    df = df.resample("W-FRI").agg({
-        "High": "max",
-        "Low": "min",
-        "Close": "last"
-    }).dropna()
-
-    if df.empty or len(df) < period:
-        raise ValueError("Insufficient weekly data for KD calculation")
-
-    highs = df["High"]
-    lows = df["Low"]
-    closes = df["Close"]
-
-    # RSV
-    low_min = lows.rolling(period).min()
-    high_max = highs.rolling(period).max()
-    denom = high_max - low_min
-
-    rsv = (closes - low_min) / denom * 100
-    rsv = rsv.replace([np.inf, -np.inf], np.nan).dropna()
-
-    if rsv.empty:
-        raise ValueError("RSV calculation failed: insufficient weekly data")
-
-    # K/D series
-    k = float(init_k)
-    d = float(init_d)
-    k_list = []
-    d_list = []
-    idx_list = []
-
-    for idx, r in rsv.items():
-        r = float(r)
-        k = (2.0 / 3.0) * k + (1.0 / 3.0) * r
-        d = (2.0 / 3.0) * d + (1.0 / 3.0) * k
-        idx_list.append(idx)
-        k_list.append(k)
-        d_list.append(d)
-
-    kd = pd.DataFrame(
-        {"K": k_list, "D": d_list},
-        index=pd.to_datetime(idx_list)
-    )
-
-    kd["diff"] = kd["K"] - kd["D"]
-
-    # --- Cross detection ---
-    kd["prev_diff"] = kd["diff"].shift(1)
-    kd["golden_cross"] = (kd["prev_diff"] <= 0) & (kd["diff"] > 0)
-    kd["death_cross"]  = (kd["prev_diff"] >= 0) & (kd["diff"] < 0)
-
-    # --- Imminent cross detection ---
-    kd["absdiff"] = kd["diff"].abs()
-    kd["diff_change"] = kd["diff"].diff()
-
-    kd["imminent_golden"] = (
-        (kd["diff"] < 0) &
-        (kd["absdiff"] <= near_threshold) &
-        (kd["diff_change"] > 0)
-    )
-
-    kd["imminent_death"] = (
-        (kd["diff"] > 0) &
-        (kd["absdiff"] <= near_threshold) &
-        (kd["diff_change"] < 0)
-    )
-
-    recent = kd.tail(max(lookback, 2)).copy()
-
-    # Find last cross
-    last_cross = None
-    crosses = recent[(recent["golden_cross"]) | (recent["death_cross"])]
-    if not crosses.empty:
-        last_idx = crosses.index[-1]
-        last_row = crosses.loc[last_idx]
-        last_cross = {
-            "date": last_idx.strftime("%Y-%m-%d"),
-            "type": "golden_cross" if bool(last_row["golden_cross"]) else "death_cross",
-            "k": float(last_row["K"]),
-            "d": float(last_row["D"]),
+    try: 
+        df = df.xs(f"{code}.TW", axis=1, level=1)
+    
+        for c in ["High", "Low", "Close"]:
+            df[c] = df[c].astype(float)
+    
+        # Weekly (Friday)
+        df = df.resample("W-FRI").agg({
+            "High": "max",
+            "Low": "min",
+            "Close": "last"
+        }).dropna()
+    
+        if df.empty or len(df) < period:
+            raise ValueError("Insufficient weekly data for KD calculation")
+    
+        highs = df["High"]
+        lows = df["Low"]
+        closes = df["Close"]
+    
+        # RSV
+        low_min = lows.rolling(period).min()
+        high_max = highs.rolling(period).max()
+        denom = high_max - low_min
+    
+        rsv = (closes - low_min) / denom * 100
+        rsv = rsv.replace([np.inf, -np.inf], np.nan).dropna()
+    
+        if rsv.empty:
+            raise ValueError("RSV calculation failed: insufficient weekly data")
+    
+        # K/D series
+        k = float(init_k)
+        d = float(init_d)
+        k_list = []
+        d_list = []
+        idx_list = []
+    
+        for idx, r in rsv.items():
+            r = float(r)
+            k = (2.0 / 3.0) * k + (1.0 / 3.0) * r
+            d = (2.0 / 3.0) * d + (1.0 / 3.0) * k
+            idx_list.append(idx)
+            k_list.append(k)
+            d_list.append(d)
+    
+        kd = pd.DataFrame(
+            {"K": k_list, "D": d_list},
+            index=pd.to_datetime(idx_list)
+        )
+    
+        kd["diff"] = kd["K"] - kd["D"]
+    
+        # --- Cross detection ---
+        kd["prev_diff"] = kd["diff"].shift(1)
+        kd["golden_cross"] = (kd["prev_diff"] <= 0) & (kd["diff"] > 0)
+        kd["death_cross"]  = (kd["prev_diff"] >= 0) & (kd["diff"] < 0)
+    
+        # --- Imminent cross detection ---
+        kd["absdiff"] = kd["diff"].abs()
+        kd["diff_change"] = kd["diff"].diff()
+    
+        kd["imminent_golden"] = (
+            (kd["diff"] < 0) &
+            (kd["absdiff"] <= near_threshold) &
+            (kd["diff_change"] > 0)
+        )
+    
+        kd["imminent_death"] = (
+            (kd["diff"] > 0) &
+            (kd["absdiff"] <= near_threshold) &
+            (kd["diff_change"] < 0)
+        )
+    
+        recent = kd.tail(max(lookback, 2)).copy()
+    
+        # Find last cross
+        last_cross = None
+        crosses = recent[(recent["golden_cross"]) | (recent["death_cross"])]
+        if not crosses.empty:
+            last_idx = crosses.index[-1]
+            last_row = crosses.loc[last_idx]
+            last_cross = {
+                "date": last_idx.strftime("%Y-%m-%d"),
+                "type": "golden_cross" if bool(last_row["golden_cross"]) else "death_cross",
+                "k": float(last_row["K"]),
+                "d": float(last_row["D"]),
+            }
+    
+        latest = kd.iloc[-1]
+        imminent = None
+        if bool(latest["imminent_golden"]):
+            imminent = "golden_cross_likely"
+        elif bool(latest["imminent_death"]):
+            imminent = "death_cross_likely"
+    
+        result = {
+            "latest": {
+                "k": float(latest["K"]),
+                "d": float(latest["D"]),
+                "diff": float(latest["diff"]),
+            },
+            "last_cross_recent": last_cross,
+            "imminent": imminent,
+            "recent_series": [
+                {
+                    "date": i.strftime("%Y-%m-%d"),
+                    "k": float(row["K"]),
+                    "d": float(row["D"]),
+                    "diff": float(row["diff"]),
+                    "golden_cross": bool(row["golden_cross"]),
+                    "death_cross": bool(row["death_cross"]),
+                }
+                for i, row in recent.iterrows()
+            ],
         }
 
-    latest = kd.iloc[-1]
-    imminent = None
-    if bool(latest["imminent_golden"]):
-        imminent = "golden_cross_likely"
-    elif bool(latest["imminent_death"]):
-        imminent = "death_cross_likely"
-
-    result = {
-        "latest": {
-            "k": float(latest["K"]),
-            "d": float(latest["D"]),
-            "diff": float(latest["diff"]),
-        },
-        "last_cross_recent": last_cross,
-        "imminent": imminent,
-        "recent_series": [
-            {
-                "date": i.strftime("%Y-%m-%d"),
-                "k": float(row["K"]),
-                "d": float(row["D"]),
-                "diff": float(row["diff"]),
-                "golden_cross": bool(row["golden_cross"]),
-                "death_cross": bool(row["death_cross"]),
-            }
-            for i, row in recent.iterrows()
-        ],
-    }
-
+    except:
+        result = "Information not found"
+    
     return str(result)
 
 @tool
@@ -389,7 +403,7 @@ def stock_price_averages(stock_id):
 
     df.dropna(inplace=True)
     if df.empty:
-        return {"error": "資料不足或代號錯誤"}
+        return {"error": "No information or code error"}
 
     # Ensure datetime index
     if not isinstance(df.index, pd.DatetimeIndex):
@@ -531,7 +545,7 @@ def stock_per(code):
 # Create agent
 agent = create_agent(
     model=model,
-    tools=[add_collection, list_collections, calcu_KD_d, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, calcu_KD_w_series, watchlist_information, add_to_watchlist, add_m_to_watchlist, check_database_connection, company_news, stock_per],
+    tools=[add_collection, list_collections, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, calcu_KD_w_series, watchlist_information, add_to_watchlist, add_m_to_watchlist, check_database_connection, company_news, stock_per],
     system_prompt="You are a very helpful assistant"
 )
 
