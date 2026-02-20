@@ -992,7 +992,7 @@ def check_stock_health(stock_symbol: str) -> dict:
     print(f"  End of Report: {stock_symbol}")
     print(f"{'='*60}\n")
 
-    return report
+    return str(report)
 
 
 ##################Tool Ends###################
@@ -1002,7 +1002,7 @@ def check_stock_health(stock_symbol: str) -> dict:
 agent = create_agent(
     model=model,
     tools=[fetch_all_stocks, add_collection, list_collections, calcu_KD_w, calcu_KD_w_multiple, stock_price_averages, calcu_KD_w_watchlist, calcu_KD_w_series, collection_information, add_to_watchlist, add_m_to_watchlist, delete_from_watchlist, check_database_connection, company_news, stock_per, check_stock_health],
-    system_prompt="You are a very helpful assistant"
+    system_prompt="You are a stock analyst. Return plaintext and do not apply any style like bold texts to the return values."
 )
 
 def get_response_from_agent(input):
