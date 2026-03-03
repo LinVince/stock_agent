@@ -10,8 +10,10 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from fintools import get_response_from_agent
+from api_server import agent_bp
 
 app = Flask(__name__)
+app.register_blueprint(agent_bp)
 
 # ---- Replace with your real tokens ----
 CHANNEL_ACCESS_TOKEN = "f7x88a8bNjsChLXDmhQE8lflFQYQIVIEboiN67X9mvJ2LcbRNgVDKYtiBhU8Dl2e4F9gJX+UyGJ1A61gxPoa81glhai/ExinG374v5BunqkhjZxL1joS7Q9wZW4p4a3NE7V/18mjsAIYO0aPFpUsywdB04t89/1O/w1cDnyilFU="
