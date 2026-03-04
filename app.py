@@ -13,7 +13,7 @@ from fintools import get_response_from_agent
 from server_api import agent_bp
 
 app = Flask(__name__)
-app.register_blueprint(agent_bp)
+#app.register_blueprint(agent_bp)
 
 # ---- Replace with your real tokens ----
 CHANNEL_ACCESS_TOKEN = "f7x88a8bNjsChLXDmhQE8lflFQYQIVIEboiN67X9mvJ2LcbRNgVDKYtiBhU8Dl2e4F9gJX+UyGJ1A61gxPoa81glhai/ExinG374v5BunqkhjZxL1joS7Q9wZW4p4a3NE7V/18mjsAIYO0aPFpUsywdB04t89/1O/w1cDnyilFU="
@@ -58,6 +58,28 @@ def handle_message(event):
             messages=[TextMessage(text=get_response_from_agent(user_text))]
         )
     )
+
+# ── Direct API routes ─────────────────────────────────────────
+@app.route("/prompt", methods=["GET"])
+def get_prompt():
+    """prompt = request.args.get("prompt")
+    if not prompt:
+        return jsonify({"error": "Missing 'prompt' query parameter"}), 400
+    response = get_response_from_agent(prompt
+    return jsonify({"prompt": prompt, "response": response}))
+    """
+    print("Testing")
+    return "Success"
+
+@app.route("/prompt", methods=["POST"])
+def post_prompt():
+    data = request.get_json()
+    if not data or "prompt" not in data:
+        return jsonify({"error": "Missing 'prompt' in request body"}), 400
+    prompt = data["prompt"]
+    response = get_response_from_agent(prompt)
+    return jsonify({"prompt": prompt, "response": response})
+    
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
