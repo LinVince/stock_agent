@@ -6,8 +6,8 @@ from linebot.v3.messaging import (
     ApiClient,
     MessagingApi,
     ReplyMessageRequest,
+    PushMessageRequest,   
     TextMessage,
-    TextSendMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from fintools import get_response_from_agent
@@ -60,12 +60,18 @@ def handle_message(event):
         )
     )
 
-def send_message_to_user(message):
+def send_message_to_user(message, user_id = "U192772f59a4321d51d8b084fde86748d"):
     try:
-        line_bot_api.push_message("U192772f59a4321d51d8b084fde86748d", TextSendMessage(text = message))
+        line_bot_api.push_message(
+            PushMessageRequest(
+                to=user_id,
+                messages=[TextMessage(text=message)]
+            )
+        )
         print("Message sent to user.")
     except Exception as e:
-        print("Failed to send message: ", e)
+        print("Failed to send message:", e)
+
 
 
 # ── Direct API routes ─────────────────────────────────────────
