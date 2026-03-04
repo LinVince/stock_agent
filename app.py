@@ -19,8 +19,9 @@ from fintools import get_response_from_agent
 app = Flask(__name__)
 
 # ---- IMPORTANT: rotate these secrets; don't hardcode in real deployments ----
-CHANNEL_ACCESS_TOKEN = "REPLACE_ME"
-CHANNEL_SECRET = "REPLACE_ME"
+# ---- Replace with your real tokens ----
+CHANNEL_ACCESS_TOKEN = "f7x88a8bNjsChLXDmhQE8lflFQYQIVIEboiN67X9mvJ2LcbRNgVDKYtiBhU8Dl2e4F9gJX+UyGJ1A61gxPoa81glhai/ExinG374v5BunqkhjZxL1joS7Q9wZW4p4a3NE7V/18mjsAIYO0aPFpUsywdB04t89/1O/w1cDnyilFU="
+CHANNEL_SECRET = "309e5a7cec0f12143ba646ca6edae145"
 
 config = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 api_client = ApiClient(config)
