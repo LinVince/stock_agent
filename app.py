@@ -1,4 +1,4 @@
-from flask import Flask, request, abort
+from flask import Flask, request, jsonify, abort
 from linebot.v3.webhook import WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
@@ -62,12 +62,6 @@ def handle_message(event):
 # ── Direct API routes ─────────────────────────────────────────
 @app.route("/prompt", methods=["GET"])
 def get_prompt():
-    """prompt = request.args.get("prompt")
-    if not prompt:
-        return jsonify({"error": "Missing 'prompt' query parameter"}), 400
-    response = get_response_from_agent(prompt
-    return jsonify({"prompt": prompt, "response": response}))
-    """
     print("Testing")
     return "Success"
 
