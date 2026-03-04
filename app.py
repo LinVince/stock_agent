@@ -59,6 +59,14 @@ def handle_message(event):
         )
     )
 
+def send_message_to_user(message):
+    try:
+        line_bot_api.push_message("U192772f59a4321d51d8b084fde86748d", TextSendMessage(text = message))
+        print("Message sent to user.")
+    except Exception as e:
+        print("Failed to send message: ", e)
+
+
 # ── Direct API routes ─────────────────────────────────────────
 @app.route("/prompt", methods=["GET"])
 def get_prompt():
@@ -72,6 +80,7 @@ def post_prompt():
         return jsonify({"error": "Missing 'prompt' in request body"}), 400
     prompt = data["prompt"]
     response = get_response_from_agent(prompt)
+    send_message_to_user(response)
     return jsonify({"prompt": prompt, "response": response})
     
 
