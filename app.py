@@ -10,7 +10,7 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from fintools import get_response_from_agent
-from api_server import agent_bp
+from server_api import agent_bp
 
 app = Flask(__name__)
 app.register_blueprint(agent_bp)
