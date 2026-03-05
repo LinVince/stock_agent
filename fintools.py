@@ -34,17 +34,26 @@ model = init_chat_model(
 #  US TW TWO 
 # ══════════════════════════════════════════════════════════════
 
+def _is_tw_code(stock_id: str) -> bool:
+    """
+    Returns True if the stock_id looks like a Taiwan stock code.
+    TW codes are purely numeric (e.g. '2330', '00881', '006208').
+    """
+    return str(stock_id).strip().isdigit()
+
+
 def resolve_ticker(stock_id: str):
     stock_id = str(stock_id).strip()
 
-    # US stock — no suffix needed
-    ticker = yf.Ticker(stock_id)
-    try:
-        info = ticker.info
-        if info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose"):
-            return ticker, "US"
-    except Exception:
-        pass
+    if not _is_tw_code(stock_id):
+        # Try US first only for non-numeric codes (e.g. 'AAPL', 'TSM')
+        ticker = yf.Ticker(stock_id)
+        try:
+            info = ticker.info
+            if info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose"):
+                return ticker, "US"
+        except Exception:
+            pass
 
     # Taiwan stocks
     for suffix in ["TW", "TWO"]:
@@ -62,11 +71,12 @@ def resolve_ticker(stock_id: str):
 def resolve_df(stock_id: str, period="90d", interval="1d"):
     stock_id = str(stock_id).strip()
 
-    # US stock
-    df = yf.download(stock_id, period=period, interval=interval, progress=False)
-    df.dropna(inplace=True)
-    if not df.empty and len(df) >= 2:
-        return df.sort_index(ascending=True), "US"
+    if not _is_tw_code(stock_id):
+        # Try US first only for non-numeric codes
+        df = yf.download(stock_id, period=period, interval=interval, progress=False)
+        df.dropna(inplace=True)
+        if not df.empty and len(df) >= 2:
+            return df.sort_index(ascending=True), "US"
 
     # Taiwan stocks
     for suffix in ["TW", "TWO"]:
