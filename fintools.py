@@ -808,6 +808,118 @@ def company_news(stock_id):
             for i in ticker.news]
     return str(news) if news else "No news found"
 
+@tool
+def us_market_news() -> str:
+    """
+    Fetch the latest US financial market news using SPY (S&P 500 ETF)
+    as a proxy for broad market news. Useful for understanding overall
+    US market sentiment before making TW stock decisions.
+    """
+    try:
+        ticker = yf.Ticker("SPY")
+        news = ticker.news
+        if not news:
+            return "No market news found."
+
+        lines = ["── US Market News ─────────────────────────────────"]
+        for i, item in enumerate(news[:10], 1):
+            content = item.get("content", {})
+            title   = content.get("title", "N/A")
+            summary = content.get("summary", "")
+            date    = content.get("pubDate", "N/A")
+            source  = content.get("provider", {}).get("displayName", "N/A")
+            lines.append(f"\n[{i}] {title}")
+            lines.append(f"    Source : {source}  |  Date: {date}")
+            if summary:
+                lines.append(f"    Summary: {summary[:200]}...")
+
+        output = "\n".join(lines)
+        print(output)
+        return output
+
+    except Exception as e:
+        return f"Failed to fetch market news: {str(e)}"
+
+
+@tool
+def tw_market_news() -> str:
+    """
+    Fetch the latest Taiwan market news using 0050.TW (Taiwan Top 50 ETF)
+    as a proxy for broad TW market news. Useful for understanding overall
+    Taiwan market sentiment before making TW stock decisions.
+    """
+    try:
+        # Try proxies in order — TSMC is most covered, fallback to broader TW tickers
+        proxies = ["2330.TW", "2317.TW", "2454.TW"]
+        news = []
+        used = None
+        for proxy in proxies:
+            try:
+                news = yf.Ticker(proxy).news
+                if news:
+                    used = proxy
+                    break
+            except Exception:
+                continue
+
+        if not news:
+                return "No Taiwan market news found."
+
+        lines = [f"── Taiwan Market News (via {used}) ────────────────"]
+        for i, item in enumerate(news[:10], 1):
+            content = item.get("content", {})
+            title   = content.get("title", "N/A")
+            summary = content.get("summary", "")
+            date    = content.get("pubDate", "N/A")
+            source  = content.get("provider", {}).get("displayName", "N/A")
+            lines.append(f"\n[{i}] {title}")
+            lines.append(f"    Source : {source}  |  Date: {date}")
+            if summary:
+                lines.append(f"    Summary: {summary[:200]}...")
+
+        output = "\n".join(lines)
+        print(output)
+        return output
+
+    except Exception as e:
+        return f"Failed to fetch Taiwan market news: {str(e)}"
+
+
+
+    """
+    Fetch the latest news for a specific stock.
+    Accepts a US ticker e.g. 'AAPL' or a TW stock code e.g. '2330'.
+    Auto-detects market (US / TW / TWO).
+    Returns up to 10 recent news items with title, summary, date and source.
+    """
+    try:
+        ticker, suffix = resolve_ticker(stock_id)
+        if ticker is None:
+            return f"Could not resolve ticker for {stock_id}"
+
+        news = ticker.news
+        if not news:
+            return f"No news found for {stock_id}."
+
+        lines = [f"── News for {stock_id} ({suffix}) ────────────────────────"]
+        for i, item in enumerate(news[:10], 1):
+            content = item.get("content", {})
+            title   = content.get("title", "N/A")
+            summary = content.get("summary", "")
+            date    = content.get("pubDate", "N/A")
+            source  = content.get("provider", {}).get("displayName", "N/A")
+            lines.append(f"\n[{i}] {title}")
+            lines.append(f"    Source : {source}  |  Date: {date}")
+            if summary:
+                lines.append(f"    Summary: {summary[:200]}...")
+
+        output = "\n".join(lines)
+        print(output)
+        return output
+
+    except Exception as e:
+        return f"Failed to fetch news for {stock_id}: {str(e)}"
+
 # ═════════════════════════════════
 # Health Check
 # ═════════════════════════════════
@@ -880,7 +992,7 @@ agent = create_agent(
         calcu_KD_w, calcu_KD_w_multiple, stock_price_averages,
         calcu_KD_w_watchlist, calcu_KD_w_series, collection_information,
         add_to_watchlist, add_m_to_watchlist, delete_from_watchlist,
-        check_database_connection, company_news, stock_per, check_stock_health, stock_hourly_prices
+        check_database_connection, company_news, stock_per, check_stock_health, stock_hourly_prices, tw_market_news, us_market_news
     ],
     system_prompt="You are a stock analyst. Return plaintext and do not apply any style like bold texts to the return values."
 )
