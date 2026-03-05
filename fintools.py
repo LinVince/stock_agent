@@ -139,30 +139,75 @@ def _calcu_KD_from_df(df: pd.DataFrame, period=9, init_k=50.0, init_d=50.0):
     return round(k, 2), round(d, 2)
 
 
+
 def get_hourly_prices(stock_id: str) -> dict:
     """
-    Internal helper — fetches hourly OHLCV data for the latest trading day.
-    Tries the last 2 days at 1h interval to ensure we capture the most recent
-    full session regardless of timezone. Auto-detects US / TW / TWO.
-    Returns a dict with date and list of hourly candles, or an error.
+    Internal helper — fetches hourly OHLCV for the latest trading day,
+    plus closing prices for the previous day, week, month, and year
+    for percentage change comparisons.
     """
+    # ── Hourly data for today ──────────────────────────────────
     df, suffix = resolve_df(stock_id, period="2d", interval="1h")
     if df.empty:
         return {"error": f"No hourly data found for {stock_id}"}
 
-    # Flatten multi-level columns if present (yf.download can produce these)
     if isinstance(df.columns, pd.MultiIndex):
         key = stock_id if suffix == "US" else f"{stock_id}.{suffix}"
         df = df.xs(key, axis=1, level=1)
 
     df.index = pd.to_datetime(df.index)
-
-    # Keep only the latest trading date
     latest_date = df.index.normalize().max()
-    df = df[df.index.normalize() == latest_date]
+    today_df = df[df.index.normalize() == latest_date].copy()
 
-    if df.empty:
+    if today_df.empty:
         return {"error": "No data found for the latest trading day"}
+
+    current_price = round(float(today_df["Close"].iloc[-1]), 2)
+
+    # Intraday trend: compare first open to last close
+    day_open  = round(float(today_df["Open"].iloc[0]),  2)
+    day_high  = round(float(today_df["High"].max()),    2)
+    day_low   = round(float(today_df["Low"].min()),     2)
+    intraday_chg_pct = round((current_price - day_open) / day_open * 100, 2)
+    if intraday_chg_pct > 0:
+        trend = "uptrend"
+    elif intraday_chg_pct < 0:
+        trend = "downtrend"
+    else:
+        trend = "flat"
+
+    # ── Daily data for historical comparisons ─────────────────
+    hist_df, _ = resolve_df(stock_id, period="13mo", interval="1d")
+    if isinstance(hist_df.columns, pd.MultiIndex):
+        key = stock_id if suffix == "US" else f"{stock_id}.{suffix}"
+        hist_df = hist_df.xs(key, axis=1, level=1)
+
+    hist_df.index = pd.to_datetime(hist_df.index)
+    hist_df = hist_df[hist_df.index.normalize() < latest_date].copy()
+
+    def _pct(ref_price):
+        if ref_price is None or ref_price == 0:
+            return None
+        return round((current_price - ref_price) / ref_price * 100, 2)
+
+    def _closest_close(target_date):
+        """Return the closing price of the nearest trading day on or before target_date."""
+        subset = hist_df[hist_df.index.normalize() <= pd.Timestamp(target_date)]
+        if subset.empty:
+            return None
+        return round(float(subset["Close"].iloc[-1]), 2)
+
+    prev_day_close   = _closest_close(latest_date - timedelta(days=1))
+    prev_week_close  = _closest_close(latest_date - timedelta(weeks=1))
+    prev_month_close = _closest_close(latest_date - timedelta(days=30))
+    prev_year_close  = _closest_close(latest_date - timedelta(days=365))
+
+    comparisons = {
+        "vs_prev_day":   {"ref_price": prev_day_close,   "chg_pct": _pct(prev_day_close)},
+        "vs_prev_week":  {"ref_price": prev_week_close,  "chg_pct": _pct(prev_week_close)},
+        "vs_prev_month": {"ref_price": prev_month_close, "chg_pct": _pct(prev_month_close)},
+        "vs_prev_year":  {"ref_price": prev_year_close,  "chg_pct": _pct(prev_year_close)},
+    }
 
     candles = [
         {
@@ -173,14 +218,21 @@ def get_hourly_prices(stock_id: str) -> dict:
             "close":  round(float(row["Close"]), 2),
             "volume": int(row["Volume"]),
         }
-        for _, row in df.iterrows()
+        for _, row in today_df.iterrows()
     ]
 
     return {
-        "stock":   stock_id,
-        "market":  suffix,
-        "date":    latest_date.strftime("%Y-%m-%d"),
-        "candles": candles,
+        "stock":         stock_id,
+        "market":        suffix,
+        "date":          latest_date.strftime("%Y-%m-%d"),
+        "current_price": current_price,
+        "day_open":      day_open,
+        "day_high":      day_high,
+        "day_low":       day_low,
+        "intraday_trend": trend,
+        "intraday_chg_pct": intraday_chg_pct,
+        "comparisons":   comparisons,
+        "candles":       candles,
     }
 
 def company_info(stock_id: str) -> dict:
@@ -488,23 +540,53 @@ def delete_from_watchlist(collection_name, stock_code):
 @tool
 def stock_hourly_prices(stock_id: str) -> str:
     """
-    Fetch hourly OHLCV prices for the latest trading day of a stock.
+    Fetch hourly OHLCV prices for the latest trading day of a stock,
+    intraday trend (uptrend / downtrend / flat), and percentage change
+    vs the previous day, week, month, and year.
+    Useful for checking whether a stock like TSMC (2330) is up or down
+    before deciding to buy a correlated TW stock.
     Accepts a US ticker e.g. 'AAPL' or a TW stock code e.g. '2330'.
     Auto-detects market (US / TW / TWO).
-    Returns the date and a list of hourly candles (open, high, low, close, volume).
     """
     result = get_hourly_prices(stock_id)
     if "error" in result:
         return result["error"]
 
-    lines = [f"Stock: {result['stock']} ({result['market']})  |  Date: {result['date']}", ""]
-    for c in result["candles"]:
+    c = result["comparisons"]
+
+    def _fmt_chg(label, entry):
+        ref = entry["ref_price"]
+        pct = entry["chg_pct"]
+        if pct is None:
+            return f"  {label}: N/A"
+        sign = "+" if pct >= 0 else ""
+        return f"  {label}: ref {ref}  →  {sign}{pct}%"
+
+    lines = [
+        f"Stock : {result['stock']} ({result['market']})  |  Date: {result['date']}",
+        f"Price : {result['current_price']}  |  Open: {result['day_open']}  "
+        f"High: {result['day_high']}  Low: {result['day_low']}",
+        f"Trend : {result['intraday_trend'].upper()}  ({'+' if result['intraday_chg_pct'] >= 0 else ''}"
+        f"{result['intraday_chg_pct']}% from open)",
+        "",
+        "── Price Comparisons ──────────────────────────",
+        _fmt_chg("vs Prev Day  ", c["vs_prev_day"]),
+        _fmt_chg("vs Prev Week ", c["vs_prev_week"]),
+        _fmt_chg("vs Prev Month", c["vs_prev_month"]),
+        _fmt_chg("vs Prev Year ", c["vs_prev_year"]),
+        "",
+        "── Hourly Candles ─────────────────────────────",
+    ]
+
+    for candle in result["candles"]:
         lines.append(
-            f"  {c['time']}  O:{c['open']}  H:{c['high']}  L:{c['low']}  C:{c['close']}  Vol:{c['volume']:,}"
+            f"  {candle['time']}  O:{candle['open']}  H:{candle['high']}  "
+            f"L:{candle['low']}  C:{candle['close']}  Vol:{candle['volume']:,}"
         )
 
-    print("\n".join(lines))
-    return "\n".join(lines)
+    output = "\n".join(lines)
+    print(output)
+    return output
 
 @tool
 def calcu_KD_w(code, period=9, init_k=50.0, init_d=50.0):
