@@ -148,16 +148,7 @@ def _calcu_KD_from_df(df: pd.DataFrame, period=9, init_k=50.0, init_d=50.0):
         d = (2/3) * d + (1/3) * k
     return round(k, 2), round(d, 2)
 
-
-
-
-
 def get_hourly_prices(stock_id: str) -> dict:
-    """
-    Internal helper — fetches hourly OHLCV for the latest trading day,
-    plus closing prices for the previous day, week, month, and year
-    for percentage change comparisons.
-    """
     # ── Hourly data for today ──────────────────────────────────
     df, suffix = resolve_df(stock_id, period="5d", interval="1h")
     if df.empty:
@@ -167,33 +158,44 @@ def get_hourly_prices(stock_id: str) -> dict:
         key = stock_id if suffix == "US" else f"{stock_id}.{suffix}"
         df = df.xs(key, axis=1, level=1)
 
-    df.index = pd.to_datetime(df.index)
+    print(f"DEBUG suffix: {suffix}")
+    print(f"DEBUG df.index.dtype before conversion: {df.index.dtype}")
+    print(f"DEBUG df.index[:3] before conversion: {df.index[:3].tolist()}")
 
-    # Convert to correct local timezone before normalizing
-    # so "today" is calculated in the stock's local time, not UTC
+    df.index = pd.to_datetime(df.index)
     if df.index.tz is None:
         df.index = df.index.tz_localize("UTC")
     tz = "America/New_York" if suffix == "US" else "Asia/Taipei"
-    df.index = df.index.tz_convert(tz).tz_localize(None)  # convert then strip → naive local time
+    df.index = df.index.tz_convert(tz).tz_localize(None)
+
+    print(f"DEBUG df.index[:3] after conversion to {tz}: {df.index[:3].tolist()}")
+
     latest_date = df.index.normalize().max()
-    today_df = df[df.index.normalize() == latest_date].copy()
+    all_dates = sorted(df.index.normalize().unique())
+    print(f"DEBUG all_dates: {all_dates}")
+    print(f"DEBUG latest_date: {latest_date}")
+
+    today_df     = df[df.index.normalize() == latest_date].copy()
+    # Get yesterday directly from hourly df — daily hist may not have it yet
+    yesterday_date = all_dates[-2] if len(all_dates) >= 2 else None
+    yesterday_df   = df[df.index.normalize() == yesterday_date].copy() if yesterday_date else pd.DataFrame()
+
+    print(f"DEBUG yesterday_date: {yesterday_date}")
+
+    print(f"DEBUG today_df shape: {today_df.shape}")
+    print(f"DEBUG today_df index: {today_df.index.tolist()}")
 
     if today_df.empty:
         return {"error": "No data found for the latest trading day"}
 
-    current_price = round(float(today_df["Close"].iloc[-1]), 2)
-
-    # Intraday trend: compare first open to last close
-    day_open  = round(float(today_df["Open"].iloc[0]),  2)
-    day_high  = round(float(today_df["High"].max()),    2)
-    day_low   = round(float(today_df["Low"].min()),     2)
+    current_price    = round(float(today_df["Close"].iloc[-1]), 2)
+    day_open         = round(float(today_df["Open"].iloc[0]),   2)
+    day_high         = round(float(today_df["High"].max()),     2)
+    day_low          = round(float(today_df["Low"].min()),      2)
     intraday_chg_pct = round((current_price - day_open) / day_open * 100, 2)
-    if intraday_chg_pct > 0:
-        trend = "uptrend"
-    elif intraday_chg_pct < 0:
-        trend = "downtrend"
-    else:
-        trend = "flat"
+    trend = "uptrend" if intraday_chg_pct > 0 else "downtrend" if intraday_chg_pct < 0 else "flat"
+
+    print(f"DEBUG current_price: {current_price}, day_open: {day_open}, trend: {trend}")
 
     # ── Daily data for historical comparisons ─────────────────
     hist_df, _ = resolve_df(stock_id, period="13mo", interval="1d")
@@ -204,8 +206,10 @@ def get_hourly_prices(stock_id: str) -> dict:
     hist_df.index = pd.to_datetime(hist_df.index)
     if hist_df.index.tz is None:
         hist_df.index = hist_df.index.tz_localize("UTC")
-    hist_df.index = hist_df.index.tz_convert(tz).tz_localize(None)  # same tz as hourly df
+    hist_df.index = hist_df.index.tz_convert(tz).tz_localize(None)
     hist_df = hist_df[hist_df.index.normalize() < latest_date].copy()
+
+    print(f"DEBUG hist_df tail dates: {sorted(hist_df.index.normalize().unique())[-3:]}")
 
     def _pct(ref_price):
         if ref_price is None or ref_price == 0:
@@ -213,16 +217,21 @@ def get_hourly_prices(stock_id: str) -> dict:
         return round((current_price - ref_price) / ref_price * 100, 2)
 
     def _closest_close(target_date):
-        """Return the closing price of the nearest trading day on or before target_date."""
         subset = hist_df[hist_df.index.normalize() <= pd.Timestamp(target_date)]
         if subset.empty:
             return None
         return round(float(subset["Close"].iloc[-1]), 2)
 
-    prev_day_close   = _closest_close(latest_date - timedelta(days=1))
+    # prev_day comes from hourly df (more up-to-date than daily hist)
+    prev_day_close   = round(float(yesterday_df["Close"].iloc[-1]), 2) if not yesterday_df.empty else None
     prev_week_close  = _closest_close(latest_date - timedelta(weeks=1))
     prev_month_close = _closest_close(latest_date - timedelta(days=30))
     prev_year_close  = _closest_close(latest_date - timedelta(days=365))
+
+    print(f"DEBUG prev_day_close: {prev_day_close}")
+    print(f"DEBUG prev_week_close: {prev_week_close}")
+    print(f"DEBUG prev_month_close: {prev_month_close}")
+    print(f"DEBUG prev_year_close: {prev_year_close}")
 
     comparisons = {
         "vs_prev_day":   {"ref_price": prev_day_close,   "chg_pct": _pct(prev_day_close)},
@@ -244,17 +253,17 @@ def get_hourly_prices(stock_id: str) -> dict:
     ]
 
     return {
-        "stock":         stock_id,
-        "market":        suffix,
-        "date":          latest_date.strftime("%Y-%m-%d"),
-        "current_price": current_price,
-        "day_open":      day_open,
-        "day_high":      day_high,
-        "day_low":       day_low,
-        "intraday_trend": trend,
+        "stock":            stock_id,
+        "market":           suffix,
+        "date":             latest_date.strftime("%Y-%m-%d"),
+        "current_price":    current_price,
+        "day_open":         day_open,
+        "day_high":         day_high,
+        "day_low":          day_low,
+        "intraday_trend":   trend,
         "intraday_chg_pct": intraday_chg_pct,
-        "comparisons":   comparisons,
-        "candles":       candles,
+        "comparisons":      comparisons,
+        "candles":          candles,
     }
 
 def company_info(stock_id: str) -> dict:
