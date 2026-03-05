@@ -30,12 +30,18 @@ model = init_chat_model(
 # ══════════════════════════════════════════════════════════════
 
 def resolve_ticker(stock_id: str):
-    """
-    Given a plain stock code e.g. "2330", return (yf.Ticker, suffix).
-    Tries .TW first; falls back to .TWO if no price data is found.
-    Returns (None, None) if neither exchange has data.
-    """
     stock_id = str(stock_id).strip()
+
+    # US stock — no suffix needed
+    ticker = yf.Ticker(stock_id)
+    try:
+        info = ticker.info
+        if info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose"):
+            return ticker, "US"
+    except Exception:
+        pass
+
+    # Taiwan stocks
     for suffix in ["TW", "TWO"]:
         ticker = yf.Ticker(f"{stock_id}.{suffix}")
         try:
@@ -44,23 +50,27 @@ def resolve_ticker(stock_id: str):
                 return ticker, suffix
         except Exception:
             continue
+
     return None, None
 
 
 def resolve_df(stock_id: str, period="90d", interval="1d"):
-    """
-    Download OHLCV data for a plain stock code.
-    Tries .TW first, falls back to .TWO.
-    Returns (DataFrame, suffix) or (empty DataFrame, None).
-    """
     stock_id = str(stock_id).strip()
+
+    # US stock
+    df = yf.download(stock_id, period=period, interval=interval, progress=False)
+    df.dropna(inplace=True)
+    if not df.empty and len(df) >= 2:
+        return df.sort_index(ascending=True), "US"
+
+    # Taiwan stocks
     for suffix in ["TW", "TWO"]:
         df = yf.download(f"{stock_id}.{suffix}", period=period, interval=interval, progress=False)
         df.dropna(inplace=True)
         if not df.empty and len(df) >= 2:
             return df.sort_index(ascending=True), suffix
-    return pd.DataFrame(), None
 
+    return pd.DataFrame(), None
 
 # ══════════════════════════════════════════════════════════════
 #  SHARED INTERNAL HELPERS
@@ -95,7 +105,9 @@ def _get_weekly_df(stock_id: str):
 
     # Flatten multi-level columns produced by yf.download
     if isinstance(df.columns, pd.MultiIndex):
-        df = df.xs(f"{stock_id}.{suffix}", axis=1, level=1)
+        key = stock_id if suffix == "US" else f"{stock_id}.{suffix}"
+        df = df.xs(key, axis=1, level=1)
+        #df = df.xs(f"{stock_id}.{suffix}", axis=1, level=1)
 
     for c in ["High", "Low", "Close"]:
         df[c] = df[c].astype(float)
@@ -548,21 +560,50 @@ def calcu_KD_w_watchlist(period=9, init_k=50.0, init_d=50.0):
     return str(result)
 
 @tool
+
+@tool
 def stock_per(code):
     """
     Fetch dividend yield, PER and PBR for a stock.
-    Accepts a plain stock code e.g. '2330'.
+    Accepts a plain TW stock code e.g. '2330' or a US ticker e.g. 'AAPL'.
+    Auto-detects market.
     """
-    api = DataLoader()
-    end_date   = (datetime.today() - timedelta(days=2)).strftime("%Y-%m-%d")
-    start_date = (datetime.today() - timedelta(days=8)).strftime("%Y-%m-%d")
-    df = api.taiwan_stock_per_pbr(stock_id=code, start_date=start_date, end_date=end_date)
-    result = ({"dividend_yield": float(df["dividend_yield"][0]),
-               "PER": float(df["PER"][0]), "PBR": float(df["PBR"][0])}
-              if df.shape[0] > 1 else "Not available")
+    _, suffix = resolve_ticker(code)
+
+    if suffix == "US":
+        ticker = yf.Ticker(code)
+        info = ticker.info
+        dy  = info.get("dividendYield")
+        per = info.get("trailingPE")
+        pbr = info.get("priceToBook")
+
+        if dy is None and per is None and pbr is None:
+            return "Not available"
+
+        result = {
+            "dividend_yield": round(dy * 100, 2) if dy is not None else None,
+            "PER":            round(per, 2)       if per is not None else None,
+            "PBR":            round(pbr, 2)       if pbr is not None else None,
+        }
+
+    else:
+        # Taiwan stocks — use FinMind
+        api        = DataLoader()
+        end_date   = (datetime.today() - timedelta(days=2)).strftime("%Y-%m-%d")
+        start_date = (datetime.today() - timedelta(days=8)).strftime("%Y-%m-%d")
+        df = api.taiwan_stock_per_pbr(stock_id=code, start_date=start_date, end_date=end_date)
+
+        result = (
+            {
+                "dividend_yield": float(df["dividend_yield"][0]),
+                "PER":            float(df["PER"][0]),
+                "PBR":            float(df["PBR"][0]),
+            }
+            if df.shape[0] > 1 else "Not available"
+        )
+
     print(result)
     return result
-
 
 #### Company information ####
 
