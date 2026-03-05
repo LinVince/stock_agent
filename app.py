@@ -51,7 +51,7 @@ def callback():
 
     return "OK"
 
-
+"""
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     user_text = event.message.text
@@ -63,7 +63,40 @@ def handle_message(event):
             messages=[TextMessage(text=reply)]
         )
     )
+"""
 
+
+@handler.add(MessageEvent, message=TextMessageContent)
+def handle_message(event):
+    user_text = event.message.text
+    reply_token = event.reply_token
+
+    # Reply to LINE immediately to prevent timeout
+    line_bot_api.reply_message(
+        ReplyMessageRequest(
+            reply_token=reply_token,
+            messages=[TextMessage(text="⏳ Fetching data, please wait...")]
+        )
+    )
+
+    # Process the heavy agent work in a background thread
+    def process():
+        try:
+            reply = get_response_from_agent(user_text)
+            if not reply:
+                reply = "Sorry, I couldn't get a response."
+        except Exception as e:
+            reply = f"Error: {str(e)}"
+
+        # Use push_message instead of reply_message (reply token is already used)
+        line_bot_api.push_message(
+            PushMessageRequest(
+                to=event.source.user_id,
+                messages=[TextMessage(text=reply)]
+            )
+        )
+
+    threading.Thread(target=process).start()
 
 def send_message_to_user(message: str, user_id: str = DEFAULT_USER_ID) -> None:
     # Keep this function fast-ish; any slow network issues are handled by calling it in background
