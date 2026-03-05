@@ -151,6 +151,7 @@ def _calcu_KD_from_df(df: pd.DataFrame, period=9, init_k=50.0, init_d=50.0):
 
 
 
+
 def get_hourly_prices(stock_id: str) -> dict:
     """
     Internal helper — fetches hourly OHLCV for the latest trading day,
@@ -158,7 +159,7 @@ def get_hourly_prices(stock_id: str) -> dict:
     for percentage change comparisons.
     """
     # ── Hourly data for today ──────────────────────────────────
-    df, suffix = resolve_df(stock_id, period="2d", interval="1h")
+    df, suffix = resolve_df(stock_id, period="5d", interval="1h")
     if df.empty:
         return {"error": f"No hourly data found for {stock_id}"}
 
@@ -255,7 +256,6 @@ def get_hourly_prices(stock_id: str) -> dict:
         "comparisons":   comparisons,
         "candles":       candles,
     }
-
 
 def company_info(stock_id: str) -> dict:
     """Return company metadata for a plain stock code. Auto-detects TW vs TWO."""
