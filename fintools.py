@@ -166,7 +166,14 @@ def get_hourly_prices(stock_id: str) -> dict:
         key = stock_id if suffix == "US" else f"{stock_id}.{suffix}"
         df = df.xs(key, axis=1, level=1)
 
-    df.index = pd.to_datetime(df.index).tz_localize(None)  # strip tz → naive
+    df.index = pd.to_datetime(df.index)
+
+    # Convert to correct local timezone before normalizing
+    # so "today" is calculated in the stock's local time, not UTC
+    if df.index.tz is None:
+        df.index = df.index.tz_localize("UTC")
+    tz = "America/New_York" if suffix == "US" else "Asia/Taipei"
+    df.index = df.index.tz_convert(tz).tz_localize(None)  # convert then strip → naive local time
     latest_date = df.index.normalize().max()
     today_df = df[df.index.normalize() == latest_date].copy()
 
@@ -193,7 +200,10 @@ def get_hourly_prices(stock_id: str) -> dict:
         key = stock_id if suffix == "US" else f"{stock_id}.{suffix}"
         hist_df = hist_df.xs(key, axis=1, level=1)
 
-    hist_df.index = pd.to_datetime(hist_df.index).tz_localize(None)  # strip tz → naive
+    hist_df.index = pd.to_datetime(hist_df.index)
+    if hist_df.index.tz is None:
+        hist_df.index = hist_df.index.tz_localize("UTC")
+    hist_df.index = hist_df.index.tz_convert(tz).tz_localize(None)  # same tz as hourly df
     hist_df = hist_df[hist_df.index.normalize() < latest_date].copy()
 
     def _pct(ref_price):
@@ -245,6 +255,7 @@ def get_hourly_prices(stock_id: str) -> dict:
         "comparisons":   comparisons,
         "candles":       candles,
     }
+
 
 def company_info(stock_id: str) -> dict:
     """Return company metadata for a plain stock code. Auto-detects TW vs TWO."""
@@ -598,7 +609,7 @@ def stock_hourly_prices(stock_id: str) -> str:
     output = "\n".join(lines)
     print(output)
     return output
-    
+
 @tool
 def calcu_KD_w(code, period=9, init_k=50.0, init_d=50.0):
     """
