@@ -10,6 +10,10 @@ from datetime import datetime, timedelta
 import mongodb_connection as mongo
 import yfinance as yf
 
+# ══════════════════════════════════════════════════════════════
+#  Environment Setup
+# ══════════════════════════════════════════════════════════════
+
 os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["LANGSMITH_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGSMITH_PROJECT"] = "pr-tart-sweatsuit-95"
@@ -27,6 +31,7 @@ model = init_chat_model(
 
 # ══════════════════════════════════════════════════════════════
 #  UNIFIED TICKER RESOLUTION  (all functions use these two)
+#  US TW TWO 
 # ══════════════════════════════════════════════════════════════
 
 def resolve_ticker(stock_id: str):
@@ -134,6 +139,50 @@ def _calcu_KD_from_df(df: pd.DataFrame, period=9, init_k=50.0, init_d=50.0):
     return round(k, 2), round(d, 2)
 
 
+def get_hourly_prices(stock_id: str) -> dict:
+    """
+    Internal helper — fetches hourly OHLCV data for the latest trading day.
+    Tries the last 2 days at 1h interval to ensure we capture the most recent
+    full session regardless of timezone. Auto-detects US / TW / TWO.
+    Returns a dict with date and list of hourly candles, or an error.
+    """
+    df, suffix = resolve_df(stock_id, period="2d", interval="1h")
+    if df.empty:
+        return {"error": f"No hourly data found for {stock_id}"}
+
+    # Flatten multi-level columns if present (yf.download can produce these)
+    if isinstance(df.columns, pd.MultiIndex):
+        key = stock_id if suffix == "US" else f"{stock_id}.{suffix}"
+        df = df.xs(key, axis=1, level=1)
+
+    df.index = pd.to_datetime(df.index)
+
+    # Keep only the latest trading date
+    latest_date = df.index.normalize().max()
+    df = df[df.index.normalize() == latest_date]
+
+    if df.empty:
+        return {"error": "No data found for the latest trading day"}
+
+    candles = [
+        {
+            "time":   row.name.strftime("%H:%M"),
+            "open":   round(float(row["Open"]),  2),
+            "high":   round(float(row["High"]),  2),
+            "low":    round(float(row["Low"]),   2),
+            "close":  round(float(row["Close"]), 2),
+            "volume": int(row["Volume"]),
+        }
+        for _, row in df.iterrows()
+    ]
+
+    return {
+        "stock":   stock_id,
+        "market":  suffix,
+        "date":    latest_date.strftime("%Y-%m-%d"),
+        "candles": candles,
+    }
+
 def company_info(stock_id: str) -> dict:
     """Return company metadata for a plain stock code. Auto-detects TW vs TWO."""
     ticker, suffix = resolve_ticker(stock_id)
@@ -185,7 +234,7 @@ def calcu_KD_w_multiple_(codes: list, period=9, init_k=50.0, init_d=50.0):
 
 
 # ══════════════════════════════════════════════════════════════
-#  CHECK FUNCTIONS (for check_stock_health)
+#  CHECK FUNCTIONS (only for check_stock_health)
 # ══════════════════════════════════════════════════════════════
 
 def check_revenue_growth(ticker_obj) -> dict:
@@ -363,7 +412,9 @@ def check_supervisor_holdings(ticker_obj) -> dict:
 #  TOOLS
 # ══════════════════════════════════════════════════════════════
 
-#### Database ####
+# ═════════════════════════════════
+# Database Tools
+# ═════════════════════════════════
 
 @tool
 def check_database_connection():
@@ -429,7 +480,31 @@ def delete_from_watchlist(collection_name, stock_code):
     return f"Stock {stock_code} deleted from {collection_name}." if result else f"Failed to delete {stock_code}."
 
 
-#### Calculation ####
+# ═════════════════════════════════
+# Calculation Tools
+# ═════════════════════════════════
+
+
+@tool
+def stock_hourly_prices(stock_id: str) -> str:
+    """
+    Fetch hourly OHLCV prices for the latest trading day of a stock.
+    Accepts a US ticker e.g. 'AAPL' or a TW stock code e.g. '2330'.
+    Auto-detects market (US / TW / TWO).
+    Returns the date and a list of hourly candles (open, high, low, close, volume).
+    """
+    result = get_hourly_prices(stock_id)
+    if "error" in result:
+        return result["error"]
+
+    lines = [f"Stock: {result['stock']} ({result['market']})  |  Date: {result['date']}", ""]
+    for c in result["candles"]:
+        lines.append(
+            f"  {c['time']}  O:{c['open']}  H:{c['high']}  L:{c['low']}  C:{c['close']}  Vol:{c['volume']:,}"
+        )
+
+    print("\n".join(lines))
+    return "\n".join(lines)
 
 @tool
 def calcu_KD_w(code, period=9, init_k=50.0, init_d=50.0):
@@ -603,7 +678,9 @@ def stock_per(code):
     print(result)
     return result
 
-#### Company information ####
+# ═════════════════════════════════
+# News
+# ═════════════════════════════════
 
 @tool
 def company_news(stock_id):
@@ -617,6 +694,11 @@ def company_news(stock_id):
     news = [f"title: {i['content']['title']}, summary: {i['content']['summary']}, Date: {i['content']['pubDate']}"
             for i in ticker.news]
     return str(news) if news else "No news found"
+
+# ═════════════════════════════════
+# Health Check
+# ═════════════════════════════════
+
 
 @tool
 def check_stock_health(stock_id: str) -> str:
@@ -685,7 +767,7 @@ agent = create_agent(
         calcu_KD_w, calcu_KD_w_multiple, stock_price_averages,
         calcu_KD_w_watchlist, calcu_KD_w_series, collection_information,
         add_to_watchlist, add_m_to_watchlist, delete_from_watchlist,
-        check_database_connection, company_news, stock_per, check_stock_health,
+        check_database_connection, company_news, stock_per, check_stock_health, stock_hourly_prices
     ],
     system_prompt="You are a stock analyst. Return plaintext and do not apply any style like bold texts to the return values."
 )
