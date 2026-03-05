@@ -560,8 +560,6 @@ def calcu_KD_w_watchlist(period=9, init_k=50.0, init_d=50.0):
     return str(result)
 
 @tool
-
-@tool
 def stock_per(code):
     """
     Fetch dividend yield, PER and PBR for a stock.
