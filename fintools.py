@@ -140,6 +140,7 @@ def _calcu_KD_from_df(df: pd.DataFrame, period=9, init_k=50.0, init_d=50.0):
 
 
 
+
 def get_hourly_prices(stock_id: str) -> dict:
     """
     Internal helper — fetches hourly OHLCV for the latest trading day,
@@ -155,7 +156,7 @@ def get_hourly_prices(stock_id: str) -> dict:
         key = stock_id if suffix == "US" else f"{stock_id}.{suffix}"
         df = df.xs(key, axis=1, level=1)
 
-    df.index = pd.to_datetime(df.index)
+    df.index = pd.to_datetime(df.index).tz_localize(None)  # strip tz → naive
     latest_date = df.index.normalize().max()
     today_df = df[df.index.normalize() == latest_date].copy()
 
@@ -182,7 +183,7 @@ def get_hourly_prices(stock_id: str) -> dict:
         key = stock_id if suffix == "US" else f"{stock_id}.{suffix}"
         hist_df = hist_df.xs(key, axis=1, level=1)
 
-    hist_df.index = pd.to_datetime(hist_df.index)
+    hist_df.index = pd.to_datetime(hist_df.index).tz_localize(None)  # strip tz → naive
     hist_df = hist_df[hist_df.index.normalize() < latest_date].copy()
 
     def _pct(ref_price):
@@ -587,7 +588,7 @@ def stock_hourly_prices(stock_id: str) -> str:
     output = "\n".join(lines)
     print(output)
     return output
-
+    
 @tool
 def calcu_KD_w(code, period=9, init_k=50.0, init_d=50.0):
     """
