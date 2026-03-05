@@ -7,6 +7,8 @@ import pandas as pd
 import numpy as np
 from FinMind.data import DataLoader
 from datetime import datetime, timedelta
+
+import requests
 import mongodb_connection as mongo
 import yfinance as yf
 
@@ -811,34 +813,103 @@ def company_news(stock_id):
 @tool
 def us_market_news() -> str:
     """
-    Fetch the latest US financial market news using SPY (S&P 500 ETF)
-    as a proxy for broad market news. Useful for understanding overall
-    US market sentiment before making TW stock decisions.
+    Fetch the latest US financial market news and hot topics from major sources
+    (Reuters, Bloomberg, CNBC, etc.) via NewsAPI.
+    Returns today's top headlines + this week's popular topics.
+    Not tied to any specific stock.
     """
+    NEWSAPI_KEY = "be5e800c867a41b6880df358f78cc8b7"
     try:
-        ticker = yf.Ticker("SPY")
-        news = ticker.news
-        if not news:
-            return "No market news found."
+        today     = datetime.utcnow().date()
+        week_ago  = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        lines = ["── US Market News ─────────────────────────────────"]
-        for i, item in enumerate(news[:10], 1):
-            content = item.get("content", {})
-            title   = content.get("title", "N/A")
-            summary = content.get("summary", "")
-            date    = content.get("pubDate", "N/A")
-            source  = content.get("provider", {}).get("displayName", "N/A")
-            lines.append(f"\n[{i}] {title}")
-            lines.append(f"    Source : {source}  |  Date: {date}")
-            if summary:
-                lines.append(f"    Summary: {summary[:200]}...")
+        # ── Fetch top US financial headlines ──────────────────
+        top_url = "https://newsapi.org/v2/top-headlines"
+        top_params = {
+            "category": "business",
+            "country":  "us",
+            "pageSize": 20,
+            "apiKey":   NEWSAPI_KEY,
+        }
+
+        # ── Fetch keyword-based hot topics this week ──────────
+        everything_url = "https://newsapi.org/v2/everything"
+        topic_params = {
+            "q":        "stock market OR Fed OR inflation OR S&P500 OR nasdaq OR treasury OR tariff",
+            "language": "en",
+            "from":     week_ago,
+            "sortBy":   "popularity",   # most clicked/shared articles first
+            "pageSize": 20,
+            "apiKey":   NEWSAPI_KEY,
+        }
+
+        top_resp   = requests.get(top_url,      params=top_params,   timeout=10).json()
+        topic_resp = requests.get(everything_url, params=topic_params, timeout=10).json()
+
+        def _fmt_articles(articles, header):
+            lines = [header]
+            today_lines = []
+            week_lines  = []
+
+            for i, a in enumerate(articles, 1):
+                title     = a.get("title")   or "N/A"
+                source    = a.get("source",  {}).get("name", "N/A")
+                desc      = a.get("description") or ""
+                pub       = a.get("publishedAt",  "")
+                url       = a.get("url", "")
+
+                # skip removed articles
+                if title == "[Removed]":
+                    continue
+
+                try:
+                    pub_dt = datetime.strptime(pub[:19], "%Y-%m-%dT%H:%M:%S")
+                except Exception:
+                    pub_dt = None
+
+                entry = (
+                    f"\n[{i}] {title}\n"
+                    f"    Source: {source}  |  {pub}\n"
+                    + (f"    {desc[:200]}...\n" if desc else "")
+                    + (f"    🔗 {url}\n" if url else "")
+                )
+
+                if pub_dt and pub_dt.date() == today:
+                    today_lines.append(entry)
+                else:
+                    week_lines.append(entry)
+
+            if today_lines:
+                lines.append(f"\n── Today ({len(today_lines)} articles) ──────────────────────")
+                lines.extend(today_lines)
+            if week_lines:
+                lines.append(f"\n── This Week ({len(week_lines)} articles) ─────────────────")
+                lines.extend(week_lines)
+
+            return lines
+
+        lines = []
+
+        # Top headlines
+        top_articles = top_resp.get("articles", [])
+        if top_articles:
+            lines += _fmt_articles(top_articles, "══ TOP US FINANCIAL HEADLINES ══════════════════════")
+
+        # Hot topics
+        topic_articles = topic_resp.get("articles", [])
+        if topic_articles:
+            lines += [""]
+            lines += _fmt_articles(topic_articles, "══ HOT MARKET TOPICS THIS WEEK ═════════════════════")
+
+        if not lines:
+            return "No US market news found."
 
         output = "\n".join(lines)
         print(output)
         return output
 
     except Exception as e:
-        return f"Failed to fetch market news: {str(e)}"
+        return f"Failed to fetch US market news: {str(e)}"
 
 
 @tool
